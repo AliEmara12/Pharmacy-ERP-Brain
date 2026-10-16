@@ -1,0 +1,76 @@
+name: Pharmacy ERP Brain CI
+
+# Trigger the workflow on push or pull request to the main branch
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # 1. Backend (.NET) Build and Test Pipeline
+  backend-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+
+      # Uncomment the following lines when the .NET code is pushed
+      # - name: Restore dependencies
+      #   run: dotnet restore ./apps/erp-backend
+
+      # - name: Build Backend
+      #   run: dotnet build ./apps/erp-backend --no-restore
+
+  # 2. Frontend (React/Next.js) Build and Test Pipeline
+  frontend-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      # Uncomment the following lines when the Next.js code is pushed
+      # - name: Install dependencies
+      #   run: npm ci
+      #   working-directory: ./apps/erp-frontend
+
+      # - name: Build Frontend
+      #   run: npm run build
+      #   working-directory: ./apps/erp-frontend
+
+  # 3. AI Brain (Python/FastAPI) Build and Test Pipeline
+  brain-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # Uncomment the following lines when the Python code is pushed
+      # - name: Install dependencies
+      #   run: pip install -r requirements.txt
+      #   working-directory: ./apps/brain
+
+  # 4. Contract Tests (Crucial for preventing contract drift)
+  contract-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Run Schema Validation
+        # Placeholder for actual contract testing logic (e.g., AJV or Testcontainers)
+        run: echo "Validating JSON schemas in /contracts directory to ensure Frontend and Backend sync..."

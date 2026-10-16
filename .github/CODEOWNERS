@@ -1,0 +1,19 @@
+# This file assigns code reviewers automatically based on the directory changed.
+
+# 1. ERP Backend Team (Ahmed Hassan, Yasin Eisa, Ahmed Salah, Maged)
+/apps/erp-backend/      @backend-user1 @backend-user2 @backend-user3 @backend-user4
+
+# 2. ERP Frontend Team (Omar, Maged, Mahmoud)
+/apps/erp-frontend/     @frontend-user1 @frontend-user2 @frontend-user3
+
+# 3. AI Brain Team (Ibrahim, Abdelrahman)
+/apps/brain/            @ai-user1 @ai-user2
+
+# 4. Contracts & Shared JSON Models (Yasin, Abdelrahman, Ibrahim)
+# Any change here requires sign-off from both Backend/Integration and AI owners
+/contracts/             @backend-user2 @ai-user1 @ai-user2
+
+# 5. DevOps & Infrastructure (Ali - This is YOU)
+# Only you can approve changes to Docker, Nginx, or CI/CD pipelines
+/infrastructure/        @AliEmara12
+/.github/               @AliEmara12
