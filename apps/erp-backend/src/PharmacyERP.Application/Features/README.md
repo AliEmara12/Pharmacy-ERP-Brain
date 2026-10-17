@@ -10,7 +10,8 @@ Organized by business domain feature:
 - **Integration/**: E-invoicing (e.g. ETA/ZATCA), external lab/insurance APIs, sync triggers.
 
 Each feature folder is structured into:
-- `Commands/`: State-altering operations with their handlers.
-- `Queries/`: Read-only queries with their handlers.
+- `Interfaces/`: Feature-specific repository contracts.
+- `Services/Interfaces/`: Feature-specific application service contracts.
+- `Services/Implementations/`: Concrete application service implementations.
 - `DTOs/`: Feature-specific request and response contracts.
 - `Validators/`: FluentValidation rule sets.
