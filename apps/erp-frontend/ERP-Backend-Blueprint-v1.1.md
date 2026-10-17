@@ -94,12 +94,15 @@
   - [12.2 Open Architectural Decisions](#122-open-architectural-decisions)
 - [13. Scope Review / Deferred Material](#13-scope-review-deferred-material)
   - [13.1 Pending Product or Architecture Decisions](#131-pending-product-or-architecture-decisions)
+
 ---
 
 <a id="1-document-overview-architectural-baseline"></a>
+
 ## 1. Document Overview & Architectural Baseline
 
 <a id="11-note-on-scope-and-hierarchy-of-authority"></a>
+
 ### 1.1 Note on Scope and Hierarchy of Authority
 
 This document defines the backend requirements present in the supplied specification for the Pharmacy ERP System of Record and its integration boundaries. It has not been independently verified against unavailable source material.
@@ -107,6 +110,7 @@ This document defines the backend requirements present in the supplied specifica
 Within the prior extraction, the Integrated MVP Contract and three cumulative stage specifications were designated as authoritative over older illustrative examples. This audit separately identifies conflicts between that extraction and the supplied integrated Blueprint; those cross-source conflicts are not resolved by this statement.
 
 The backend ERD and API are released as three cumulative stages:
+
 - **Stage 1:** Organization, Identity, Catalog, and Inventory Ledger
 - **Stage 2:** Cashier POS Sales, Invoices, Cash Payments, Returns, and Offline Sync
 - **Stage 3:** Purchasing Cycle (Suppliers, One-Step PO Receiving, Supplier Payments, and Vendor Returns)
@@ -114,49 +118,53 @@ The backend ERD and API are released as three cumulative stages:
 The canonical contract exposed to the external Brain/AI service is versioned and stable, ensuring the ERP System of Record enforces all business invariants, database constraints, financial snapshots, and tenant isolation.
 
 <a id="12-integrated-mvp-contract"></a>
+
 ### 1.2 Integrated MVP Contract
 
-| Area | Backend requirement |
-| --- | --- |
-| Delivery model | Three cumulative backend ERD/API stages. |
-| .NET backend | One modular-monolith codebase and `PharmacyDbContext`, deployed as cloud ERP API and branch-local runtime. |
-| Database | Shared cloud PostgreSQL `erp_db` stores multiple organizations. Branch-local database uses the same logical ERP schema and migrations. Schemas: `identity`, `catalog`, `inventory`, `sales`, `purchasing`, `integration`. |
-| Organization scope | Each pharmacy owner is an Organization/tenant. Every tenant-owned row carries `organization_id`; branch operations are scoped by `branch_id`. Tenant context comes from authenticated identity, never an untrusted request field. |
-| POS scope | Cashier-only sales. `SALES_ORDER` is cashier cart/order; completion creates one invoice, payment record, and stock issue transaction atomically. No customer, e-commerce, delivery, reservation, or POS-terminal entity is in the MVP schema. |
-| Offline operation | Branch-local API writes sales/returns offline. Durable `SYNC_OUTBOX` retries to cloud; cloud `SYNC_INBOX` deduplicates by `operation_id`. Cloud-to-branch bootstrap/delta reads refresh catalog/reference data. |
-| Inventory source of truth | Append-only `INVENTORY_TXN`/`INVENTORY_TXN_LINE` are authoritative; `STOCK_BALANCE` is a concurrency-safe projection. Draft orders do not reserve/decrement stock; posted sale/return operations do. |
-| Canonical boundary | Cloud .NET Canonical HTTP API is the external ERP boundary. It exposes staged reads and only backend-supported approved configuration/draft-purchase commands. It does not accept AI-created cashier sales orders. |
-| Historical snapshots | Posted invoices, returns, and supplier documents retain quantities, UOM conversions, prices, costs, taxes, totals, and refund facts applied at posting. |
+| Area                      | Backend requirement                                                                                                                                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Delivery model            | Three cumulative backend ERD/API stages.                                                                                                                                                                                                      |
+| .NET backend              | One modular-monolith codebase and `PharmacyDbContext`, deployed as cloud ERP API and branch-local runtime.                                                                                                                                    |
+| Database                  | Shared cloud PostgreSQL `erp_db` stores multiple organizations. Branch-local database uses the same logical ERP schema and migrations. Schemas: `identity`, `catalog`, `inventory`, `sales`, `purchasing`, `integration`.                     |
+| Organization scope        | Each pharmacy owner is an Organization/tenant. Every tenant-owned row carries `organization_id`; branch operations are scoped by `branch_id`. Tenant context comes from authenticated identity, never an untrusted request field.             |
+| POS scope                 | Cashier-only sales. `SALES_ORDER` is cashier cart/order; completion creates one invoice, payment record, and stock issue transaction atomically. No customer, e-commerce, delivery, reservation, or POS-terminal entity is in the MVP schema. |
+| Offline operation         | Branch-local API writes sales/returns offline. Durable `SYNC_OUTBOX` retries to cloud; cloud `SYNC_INBOX` deduplicates by `operation_id`. Cloud-to-branch bootstrap/delta reads refresh catalog/reference data.                               |
+| Inventory source of truth | Append-only `INVENTORY_TXN`/`INVENTORY_TXN_LINE` are authoritative; `STOCK_BALANCE` is a concurrency-safe projection. Draft orders do not reserve/decrement stock; posted sale/return operations do.                                          |
+| Canonical boundary        | Cloud .NET Canonical HTTP API is the external ERP boundary. It exposes staged reads and only backend-supported approved configuration/draft-purchase commands. It does not accept AI-created cashier sales orders.                            |
+| Historical snapshots      | Posted invoices, returns, and supplier documents retain quantities, UOM conversions, prices, costs, taxes, totals, and refund facts applied at posting.                                                                                       |
 
 <a id="13-architectural-principles"></a>
+
 ### 1.3 Architectural Principles
 
-| # | Principle | Backend application |
-|---|---|---|
-|1|ERP is the system of record|.NET owns identity, inventory, orders, invoices, supplier documents, payments, totals, and state transitions.|
-|2|Canonical contracts separate ERP data from external consumers|Consumers use versioned DTOs, never pharmacy table names or SQL.|
-|3|Stock is ledger-backed|Every posted stock change has an immutable inventory transaction line; balances are concurrency-safe projections.|
-|4|Documents keep historical snapshots|Posted invoice and purchase lines retain UOM, conversion, price, tax, and cost snapshots.|
-|5|Restricted writes require approval|Allowed external writes require explicit approval of the exact proposal before the Canonical API command.|
-|6|Organization and branch scope are explicit|Every tenant-owned row carries `organization_id`; branch access is checked on every use case.|
-|7|Use a modular monolith|One API and transaction boundary keep sales, stock, and purchasing consistent.|
-|8|Freeze contracts before parallel implementation|OpenAPI, JSON Schemas and fixtures are reviewed by producers and consumers.|
-|9|Minimize sensitive data|Canonical responses contain only fields needed by the approved operation; omit credentials and unnecessary personal data.|
-|10|Keep persistence ownership separate|`erp_db` is the sole ERP system of record; external integration has no direct path into ERP tables. |
+| #   | Principle                                                     | Backend application                                                                                                       |
+| --- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | ERP is the system of record                                   | .NET owns identity, inventory, orders, invoices, supplier documents, payments, totals, and state transitions.             |
+| 2   | Canonical contracts separate ERP data from external consumers | Consumers use versioned DTOs, never pharmacy table names or SQL.                                                          |
+| 3   | Stock is ledger-backed                                        | Every posted stock change has an immutable inventory transaction line; balances are concurrency-safe projections.         |
+| 4   | Documents keep historical snapshots                           | Posted invoice and purchase lines retain UOM, conversion, price, tax, and cost snapshots.                                 |
+| 5   | Restricted writes require approval                            | Allowed external writes require explicit approval of the exact proposal before the Canonical API command.                 |
+| 6   | Organization and branch scope are explicit                    | Every tenant-owned row carries `organization_id`; branch access is checked on every use case.                             |
+| 7   | Use a modular monolith                                        | One API and transaction boundary keep sales, stock, and purchasing consistent.                                            |
+| 8   | Freeze contracts before parallel implementation               | OpenAPI, JSON Schemas and fixtures are reviewed by producers and consumers.                                               |
+| 9   | Minimize sensitive data                                       | Canonical responses contain only fields needed by the approved operation; omit credentials and unnecessary personal data. |
+| 10  | Keep persistence ownership separate                           | `erp_db` is the sole ERP system of record; external integration has no direct path into ERP tables.                       |
 
 <a id="14-fixed-technology-stack"></a>
+
 ### 1.4 Fixed Technology Stack
 
-| Area | Technology | Backend role |
-| --- | --- | --- |
-| ERP backend | .NET / ASP.NET Core, folder-based N-Tier modular monolith | System of Record, workflows, API and canonical adapter |
-| ERP data | PostgreSQL cloud `erp_db` and branch-local ERP database per branch; Redis for backend-owned plumbing | Consolidated cloud operation and offline branch POS |
-| Persistence | EF Core, one `PharmacyDbContext`, one ordered cumulative migration chain | Shared cloud and branch-local ERP schema |
-| Delivery | Docker Compose and GitHub Actions | Build, contract checks, container delivery and migration rollout |
+| Area        | Technology                                                                                           | Backend role                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| ERP backend | .NET / ASP.NET Core, folder-based N-Tier modular monolith                                            | System of Record, workflows, API and canonical adapter           |
+| ERP data    | PostgreSQL cloud `erp_db` and branch-local ERP database per branch; Redis for backend-owned plumbing | Consolidated cloud operation and offline branch POS              |
+| Persistence | EF Core, one `PharmacyDbContext`, one ordered cumulative migration chain                             | Shared cloud and branch-local ERP schema                         |
+| Delivery    | Docker Compose and GitHub Actions                                                                    | Build, contract checks, container delivery and migration rollout |
 
 Nginx is the reverse proxy. The backend uses simple Application service interfaces; MediatR and additional broker platforms are not required by the documented MVP.
 
 <a id="15-backend-mvp-scope"></a>
+
 ### 1.5 Backend MVP Scope
 
 The backend ERD and API are delivered in three cumulative stages:
@@ -168,12 +176,14 @@ The backend ERD and API are delivered in three cumulative stages:
 The cloud uses shared PostgreSQL `erp_db` for multiple Organizations. Each branch has one local ERP database using the same logical schema and migrations. `organization_id` is the tenant boundary on every tenant-owned row; `branch_id` scopes branch operations. Future and explicitly excluded capabilities are recorded in §13.
 
 <a id="2-system-component-architecture"></a>
+
 ## 2. System & Component Architecture
 
 <a id="21-distributed-system-architecture-cloud-branch-local-pos"></a>
+
 ### 2.1 Distributed System Architecture (Cloud & Branch-Local POS)
 
-~~~mermaid
+```mermaid
 flowchart TB
  subgraph Branch["Each pharmacy branch — one POS device"]
  POS["Branch POS client"]
@@ -194,9 +204,10 @@ flowchart TB
  end
  SYNCOUT -->|"retryable operations"| CLOUDAPI
  CLOUDAPI -->|"bootstrap and change feed"| LOCALAPI
-~~~
+```
 
 The same .NET N-Tier codebase, organized with feature folders inside shared layers, runs in the cloud and as a branch-local service:
+
 - The branch POS client talks to its local API/database so a lost Internet connection does not stop cashier work.
 - The local database holds durable branch operations; the cloud stores consolidated organization data.
 - SYNC_OUTBOX and SYNC_INBOX support retry and deduplication.
@@ -205,9 +216,10 @@ The same .NET N-Tier codebase, organized with feature folders inside shared laye
 - The branch-local runtime is the sole stock command writer for its branch. Cloud exposes no direct stock mutation endpoint; branch stock changes are posted locally and synchronized as facts. The cloud branch projection changes only after those facts are applied; conflict behavior is defined in §4.3.
 
 <a id="22-erp-backend-modular-monolith-structure"></a>
+
 ### 2.2 ERP Backend Modular Monolith Structure
 
-~~~text
+```text
 PharmacyERP.sln
 /src
  /PharmacyERP.Api Controllers, middleware, auth, versioning
@@ -222,9 +234,10 @@ PharmacyERP.sln
  /Identity / Catalog / Inventory / Sales / Purchasing / Integration
 /tests
 /contracts OpenAPI, JSON Schema, fixtures
-~~~
+```
 
 This is one .NET solution, one API host, one PostgreSQL connection, and one `PharmacyDbContext`. Each feature owns its entity/configuration/service files; the shared context applies those configurations and the single migration chain.
+
 - **Domain** owns business invariants;
 - **Application** orchestrates use cases and transactions;
 - **Infrastructure** implements EF Core and external adapters;
@@ -233,9 +246,10 @@ This is one .NET solution, one API host, one PostgreSQL connection, and one `Pha
 Use simple interfaces and service classes; a message bus or separate context per feature is not needed for this MVP. Generic repositories fit straightforward master-data CRUD. Inventory locking/FEFO, sales posting, receiving, payments, and returns use explicit custom methods and transactions.
 
 <a id="23-n-tier-solution-layout-layer-responsibilities"></a>
+
 ### 2.3 N-Tier Solution Layout & Layer Responsibilities
 
-~~~text
+```text
 /apps/erp-backend
  /PharmacyERP.Api
  /Controllers (Thin controllers per business aggregate)
@@ -253,9 +267,10 @@ Use simple interfaces and service classes; a message bus or separate context per
  /Authentication (ASP.NET Core Identity & JWT issuance)
  /BackgroundServices (Local/cloud sync worker, outbox publisher)
  /ObjectStorage (Optional S3/MinIO driver)
-~~~
+```
 
 Layer boundaries:
+
 - **Domain:** entities, value objects, invariant methods, enums, and domain exceptions. No EF, HTTP, or LLM dependency.
 - **Application:** use cases, interfaces, DTOs, authorization and validation, transaction orchestration, mapping, and error/result decisions.
 - **Infrastructure:** the one PharmacyDbContext, EF configurations and migrations, repositories, password hashing/JWT integration, outbox/background services, and optional S3-compatible image storage.
@@ -263,36 +278,39 @@ Layer boundaries:
 - **External integration boundary:** versioned Canonical HTTP API only. No direct ERP `DbContext`, database connection, or Redis access.
 
 <a id="24-integration-architecture-the-canonical-model"></a>
+
 ### 2.4 Integration Architecture & The Canonical Model
 
 The Canonical API gives external consumers a stable, ERP-agnostic contract. Physical pharmacy entities and workflow stages remain owned by the .NET backend. The canonical payloads are exposed through versioned contracts:
 
-| Canonical entity | Core meaning | Maps from the staged pharmacy model |
-| --- | --- | --- |
-| Product | SKU, display name, category, active state, base UOM and supported conversions | catalog.PRODUCT, PRODUCT_CATEGORY, PRODUCT_UOM |
-| InventoryItem | Product/organization/branch/location/batch, on-hand and available quantity, average cost, quality, expiry and update time | inventory.STOCK_BALANCE, INVENTORY_LOCATION, INVENTORY_BATCH; available quantity is derived from eligible on-hand stock because the MVP has no reservations |
-| Sale / SaleLine | Posted cashier sale facts with quantity, price/tax/discount snapshots and timestamp | Posted sales.SALES_INVOICE and SALES_INVOICE_LINE, linked to the completed SALES_ORDER |
-| SalesOrder | Non-PII cashier order lifecycle, read-only to external consumers | sales.SALES_ORDER and SALES_ORDER_LINE; channel is POS only |
-| SaleReturn / SaleReturnLine | Posted returned quantities, disposition, and refund facts needed for analytics | sales.SALES_RETURN, SALES_RETURN_LINE, and SALES_REFUND |
-| PurchaseOrder / PurchaseOrderLine | Supplier, branch, lifecycle, ordered/received/remaining quantities and cost snapshots | purchasing.PURCHASE_ORDER and PURCHASE_ORDER_LINE |
-| Supplier | Stable supplier identifier, legal name, lead time, and active state only when needed | purchasing.SUPPLIER; omit tax, address, and contact details the model does not need |
+| Canonical entity                  | Core meaning                                                                                                              | Maps from the staged pharmacy model                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Product                           | SKU, display name, category, active state, base UOM and supported conversions                                             | catalog.PRODUCT, PRODUCT_CATEGORY, PRODUCT_UOM                                                                                                              |
+| InventoryItem                     | Product/organization/branch/location/batch, on-hand and available quantity, average cost, quality, expiry and update time | inventory.STOCK_BALANCE, INVENTORY_LOCATION, INVENTORY_BATCH; available quantity is derived from eligible on-hand stock because the MVP has no reservations |
+| Sale / SaleLine                   | Posted cashier sale facts with quantity, price/tax/discount snapshots and timestamp                                       | Posted sales.SALES_INVOICE and SALES_INVOICE_LINE, linked to the completed SALES_ORDER                                                                      |
+| SalesOrder                        | Non-PII cashier order lifecycle, read-only to external consumers                                                          | sales.SALES_ORDER and SALES_ORDER_LINE; channel is POS only                                                                                                 |
+| SaleReturn / SaleReturnLine       | Posted returned quantities, disposition, and refund facts needed for analytics                                            | sales.SALES_RETURN, SALES_RETURN_LINE, and SALES_REFUND                                                                                                     |
+| PurchaseOrder / PurchaseOrderLine | Supplier, branch, lifecycle, ordered/received/remaining quantities and cost snapshots                                     | purchasing.PURCHASE_ORDER and PURCHASE_ORDER_LINE                                                                                                           |
+| Supplier                          | Stable supplier identifier, legal name, lead time, and active state only when needed                                      | purchasing.SUPPLIER; omit tax, address, and contact details the model does not need                                                                         |
 
 The Canonical API validates and returns versioned JSON. Additive fields are backward-compatible; breaking changes require a new version and contract fixtures. The stage DTOs and routes take precedence over generalized examples.
 
 <a id="25-canonical-adapter-capabilities-and-controls"></a>
+
 ### 2.5 Canonical Adapter Capabilities and Controls
 
 The .NET Integration module exposes the versioned `/api/v1/canonical/*` boundary and invokes ordinary Application use cases. It returns stable canonical DTOs; staged ERP entities and persistence remain backend-owned.
 
-| Capability | Direction | Backend contract |
-| --- | --- | --- |
-| Products, inventory, sales, orders, returns, suppliers, purchase orders | Read | Paginated, organization/branch-authorized; use stage-defined `updated_since`/cursor where available. |
-| Product/UOM/reorder configuration and draft purchase order | Restricted write | Only stage-supported commands; require approved exact proposal, current authorization, validation, idempotency and audit. |
-| `capabilities` | Discovery | Report only operations available in the deployed stage. |
+| Capability                                                              | Direction        | Backend contract                                                                                                          |
+| ----------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Products, inventory, sales, orders, returns, suppliers, purchase orders | Read             | Paginated, organization/branch-authorized; use stage-defined `updated_since`/cursor where available.                      |
+| Product/UOM/reorder configuration and draft purchase order              | Restricted write | Only stage-supported commands; require approved exact proposal, current authorization, validation, idempotency and audit. |
+| `capabilities`                                                          | Discovery        | Report only operations available in the deployed stage.                                                                   |
 
 .NET is authoritative for identity, organization/branch authorization, business validation, state, totals, idempotency and audit. Scheduled reads use the documented read-only service identity; user-driven requests carry the authenticated actor. Reads may use bounded retries; writes retry only with the same idempotency key and unchanged typed payload. Breaking contract changes require a new version and reviewed fixtures. Do not expose cashier order creation/completion, stock mutation, invoice/payment/return posting, physical receipt, or supplier transmission as canonical writes.
 
 <a id="26-canonical-reads-and-incremental-change-feeds"></a>
+
 ### 2.6 Canonical Reads and Incremental Change Feeds
 
 The Canonical API is the ERP integration boundary. It serves authorized, branch-scoped cloud projections using stage-defined `updated_since` and/or cursor parameters. Cursor-mode replication uses the durable, commit-ordered `OUTBOX_EVENT.event_sequence` described in §4.2; `updated_since` is a convenience filter only and is not a no-loss replication cursor. List responses return a continuation cursor; consumers must use stable canonical identifiers and idempotent upserts. On-demand reads requiring current workflow or inventory state use the current Canonical API response.
@@ -300,64 +318,69 @@ The Canonical API is the ERP integration boundary. It serves authorized, branch-
 The ERP transaction commits business state and its internal outbox event atomically. Every change-feed-visible mutation emits a durable outbox event in that same transaction, including deactivation/tombstone facts and branch-scoped identity or reference-data changes. The ERP outbox is backend-owned plumbing, not an external consumer API or business store. Canonical collection synchronization is independent of user-facing sale completion; a sale never waits for an external consumer or computation. Retries replay from the durable cursor and consumers upsert by stable IDs; no arbitrary time-overlap window is treated as a delivery guarantee.
 
 <a id="27-approved-canonical-write-boundary"></a>
+
 ### 2.7 Approved Canonical Write Boundary
 
 The Canonical API exposes only reads and explicitly supported restricted writes. Any AI-assisted write presented to the backend must arrive as the existing typed stage command after explicit approval of the exact proposal. The ERP validates the authenticated actor, current organization and branch access, target state, business rules, and idempotency independently; approval is not a substitute for ERP authorization.
 
-| Contract area | Backend requirement |
-| --- | --- |
-| Supported reads | Products, branch inventory, posted sales, non-PII POS order state, returns, suppliers and purchase orders, subject to deployed-stage capability. |
-| Allowed writes | Stage 1 product/UOM/reorder configuration; Stage 3 draft purchase order, only where the endpoint exists. |
-| Forbidden writes | No raw SQL; stock-balance mutation; inventory transaction posting; invoice, payment/refund, return, or receipt posting; arbitrary status patch; or supplier transmission. |
-| Approval binding | Only the exact typed payload approved by the authenticated user may be executed. The approval boundary verifies proposal ownership against authenticated user/session, pending state, expiry, unchanged payload hash, and currently allow-listed command. .NET independently checks current organization/branch access and business state. A changed branch, supplier, quantity, or line set requires a new proposal and approval. |
-| Idempotency/recovery | Retries reuse the same idempotency key and deterministic canonical representation of the same typed payload. A timeout is reconciled by retrying with that key; the backend returns the original result or a typed mismatch/conflict. No silent payload mutation or second proposal. At most one state-changing execution may succeed for an approved proposal. |
-| Audit | ERP writes the authenticated actor and accepted business mutation to `integration.AUDIT_LOG`; approval-system lifecycle remains outside ERP persistence except for defined correlation fields. The integration caller records the approval decision and returned `CanonicalWriteResult` in its own system. |
-| State/failure | Rejected or expired proposals cannot execute. The integration contract reports typed `pending`, `rejected`, `expired`, `succeeded`, or `failed` outcomes; failures are visible and auditable, not retried with changed arguments. Drafts use normal ERP edit/cancel endpoints; posted financial or ledger facts are reversed only through a new authorized ERP transaction. |
+| Contract area        | Backend requirement                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supported reads      | Products, branch inventory, posted sales, non-PII POS order state, returns, suppliers and purchase orders, subject to deployed-stage capability.                                                                                                                                                                                                                                                                                   |
+| Allowed writes       | Stage 1 product/UOM/reorder configuration; Stage 3 draft purchase order, only where the endpoint exists.                                                                                                                                                                                                                                                                                                                           |
+| Forbidden writes     | No raw SQL; stock-balance mutation; inventory transaction posting; invoice, payment/refund, return, or receipt posting; arbitrary status patch; or supplier transmission.                                                                                                                                                                                                                                                          |
+| Approval binding     | Only the exact typed payload approved by the authenticated user may be executed. The approval boundary verifies proposal ownership against authenticated user/session, pending state, expiry, unchanged payload hash, and currently allow-listed command. .NET independently checks current organization/branch access and business state. A changed branch, supplier, quantity, or line set requires a new proposal and approval. |
+| Idempotency/recovery | Retries reuse the same idempotency key and deterministic canonical representation of the same typed payload. A timeout is reconciled by retrying with that key; the backend returns the original result or a typed mismatch/conflict. No silent payload mutation or second proposal. At most one state-changing execution may succeed for an approved proposal.                                                                    |
+| Audit                | ERP writes the authenticated actor and accepted business mutation to `integration.AUDIT_LOG`; approval-system lifecycle remains outside ERP persistence except for defined correlation fields. The integration caller records the approval decision and returned `CanonicalWriteResult` in its own system.                                                                                                                         |
+| State/failure        | Rejected or expired proposals cannot execute. The integration contract reports typed `pending`, `rejected`, `expired`, `succeeded`, or `failed` outcomes; failures are visible and auditable, not retried with changed arguments. Drafts use normal ERP edit/cancel endpoints; posted financial or ledger facts are reversed only through a new authorized ERP transaction.                                                        |
 
 Backend consumers cannot use untrusted free text to change actor, tenant, branch, approval state, or typed command arguments. The ERP remains authoritative for state transitions.
 
 <a id="3-data-architecture-persistence-model"></a>
+
 ## 3. Data Architecture & Persistence Model
 
 <a id="31-core-data-architecture-storage-boundaries"></a>
+
 ### 3.1 Core Data Architecture & Storage Boundaries
 
-| Store / boundary | MVP implementation | Owner | Backend rule |
-| --- | --- | --- | --- |
-| ERP system of record | Shared cloud PostgreSQL `erp_db` plus one branch-local ERP database per branch; same logical schemas and migrations, one `PharmacyDbContext` codebase | .NET / EF Core | Cloud consolidates organization data; branch local supports offline POS. |
-| ERP integration boundary | Versioned Canonical HTTP API; no external direct database, Redis, or sync-table access | .NET Integration | All external reads/writes pass ERP authorization and validation. |
-| ERP cache/event plumbing | Backend-owned Redis; append-only `integration.OUTBOX_EVENT` and `integration.AUDIT_LOG` in ERP database | .NET | Not a business source of truth or external database interface. |
-| Logs and backups | Structured JSON to stdout; back up `erp_db` to off-host storage and rehearse restore | Operations | Restore ERP state independently. |
+| Store / boundary         | MVP implementation                                                                                                                                    | Owner            | Backend rule                                                             |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------ |
+| ERP system of record     | Shared cloud PostgreSQL `erp_db` plus one branch-local ERP database per branch; same logical schemas and migrations, one `PharmacyDbContext` codebase | .NET / EF Core   | Cloud consolidates organization data; branch local supports offline POS. |
+| ERP integration boundary | Versioned Canonical HTTP API; no external direct database, Redis, or sync-table access                                                                | .NET Integration | All external reads/writes pass ERP authorization and validation.         |
+| ERP cache/event plumbing | Backend-owned Redis; append-only `integration.OUTBOX_EVENT` and `integration.AUDIT_LOG` in ERP database                                               | .NET             | Not a business source of truth or external database interface.           |
+| Logs and backups         | Structured JSON to stdout; back up `erp_db` to off-host storage and rehearse restore                                                                  | Operations       | Restore ERP state independently.                                         |
 
 The detailed PostgreSQL ERP schema and each stage's entity fields are defined in §§5–7. External canonical identifiers are references only; the ERP remains the source of truth for identity, stock, money and workflow status.
 
 <a id="32-database-deployment-topology-cloud-erp_db-vs-branch-local-databases"></a>
+
 ### 3.2 Database Deployment Topology: Cloud erp_db vs. Branch-Local Databases
 
 Use shared cloud PostgreSQL erp_db and one branch-local PostgreSQL database per branch. Both use the same logical schemas and ordered EF migration chain through the same PharmacyDbContext codebase:
 
-| PostgreSQL schema | Main tables |
-|---|---|
-| identity | ORGANIZATION, BRANCH, EMPLOYEE, USER_ACCOUNT, USER_BRANCH_ACCESS, USER_REFRESH_TOKEN, BRANCH_ENROLLMENT |
-| catalog | PRODUCT_CATEGORY, PRODUCT, PRODUCT_UOM, PRODUCT_REORDER_RULE |
-| inventory | INVENTORY_LOCATION, INVENTORY_BATCH, STOCK_BALANCE, INVENTORY_TXN, INVENTORY_TXN_LINE |
-| sales | SALES_ORDER, SALES_ORDER_LINE, SALES_INVOICE, SALES_INVOICE_LINE, SALES_PAYMENT, SALES_RETURN, SALES_RETURN_LINE, SALES_REFUND |
-| purchasing | SUPPLIER, PURCHASE_ORDER, PURCHASE_ORDER_LINE, SUPPLIER_PAYMENT, VENDOR_RETURN, VENDOR_RETURN_LINE |
-| integration | OUTBOX_EVENT_CURSOR (cloud), OUTBOX_EVENT, AUDIT_LOG, IDEMPOTENCY_RECORD, SYNC_OUTBOX (branch-local), SYNC_INBOX (cloud), SYNC_BRANCH_CURSOR (both) |
+| PostgreSQL schema | Main tables                                                                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| identity          | ORGANIZATION, BRANCH, EMPLOYEE, USER_ACCOUNT, USER_BRANCH_ACCESS, USER_REFRESH_TOKEN, BRANCH_ENROLLMENT                                             |
+| catalog           | PRODUCT_CATEGORY, PRODUCT, PRODUCT_UOM, PRODUCT_REORDER_RULE                                                                                        |
+| inventory         | INVENTORY_LOCATION, INVENTORY_BATCH, STOCK_BALANCE, INVENTORY_TXN, INVENTORY_TXN_LINE                                                               |
+| sales             | SALES_ORDER, SALES_ORDER_LINE, SALES_INVOICE, SALES_INVOICE_LINE, SALES_PAYMENT, SALES_RETURN, SALES_RETURN_LINE, SALES_REFUND                      |
+| purchasing        | SUPPLIER, PURCHASE_ORDER, PURCHASE_ORDER_LINE, SUPPLIER_PAYMENT, VENDOR_RETURN, VENDOR_RETURN_LINE                                                  |
+| integration       | OUTBOX_EVENT_CURSOR (cloud), OUTBOX_EVENT, AUDIT_LOG, IDEMPOTENCY_RECORD, SYNC_OUTBOX (branch-local), SYNC_INBOX (cloud), SYNC_BRANCH_CURSOR (both) |
 
 Relationships between logical schemas use normal PostgreSQL FK constraints and EF Core navigation properties. Use restrictive/no-action delete behavior (`DeleteBehavior.Restrict`). Avoid polymorphic source IDs wherever a typed FK can be added.
 
 <a id="33-shared-database-conventions-identifiers-data-types"></a>
+
 ### 3.3 Shared Database Conventions, Identifiers & Data Types
 
 - **Primary and Foreign Keys:** UUID PK/FK. Every tenant-owned table has non-null `organization_id` and a unique alternate key `(organization_id, primary_id)` for organization-aware composite FKs; Organization itself is keyed by `organization_id`.
 - **Business Identifiers:** Business codes such as SKU, barcode, branch code, supplier code, invoice number, and PO number are `varchar` with organization/branch-scoped uniqueness as applicable.
 - **Data Types & Precisions:**
- - Quantities, conversion factors, and unit costs: `numeric(18,4)` or `numeric(18,6)`.
- - Money amounts: `numeric(18,2)`.
- - Currency: `char(3)`, seeded to `EGP`.
- - Timestamps: `timestamptz` UTC.
- - Expiration and manufacturing dates: `date`.
+- Quantities, conversion factors, and unit costs: `numeric(18,4)` or `numeric(18,6)`.
+- Money amounts: `numeric(18,2)`.
+- Currency: `char(3)`, seeded to `EGP`.
+- Timestamps: `timestamptz` UTC.
+- Expiration and manufacturing dates: `date`.
 - **Audit Columns:** Core mutable rows use `created_at` and `updated_at`. Transactions also store their actor and timestamp.
 - **Soft Deactivation:** Identity, catalog, and supplier master rows use `is_active` for soft deactivation. Never hard-delete referenced records. Transaction records are retained and status-transitioned; posted stock lines are append-only.
 - **Tenant Scoping & Composite FKs:** Composite foreign keys include `organization_id` so a valid UUID from another tenant cannot satisfy a cross-tenant relationship. A foreign key prevents deletion of a referenced row. Soft deactivation changes `is_active`; it does not erase history or cascade to invoices/movements.
@@ -366,22 +389,25 @@ Relationships between logical schemas use normal PostgreSQL FK constraints and E
 - **Pagination & Standards:** All lists are paginated. API and Canonical DTOs use stable IDs, explicit states, UTC dates, and currency where relevant. OpenAPI/JSON Schema in `/contracts` is the source of truth.
 
 <a id="34-address-value-object-specification"></a>
+
 ### 3.4 Address Value Object Specification
 
 Address is an EF Core Owned type (`OwnsOne`) stored as prefixed columns on its owner, not an independent table in this MVP:
 
-~~~text
+```text
 line1 varchar(200), line2 varchar(200) nullable,
 city varchar(100), region varchar(100) nullable,
 postal_code varchar(20) nullable, country_code char(2)
-~~~
+```
 
 Use it on `Organization`, `Branch`, `Employee`, and `Supplier`. Sales orders and returns do not store customer identity or delivery address.
 
 <a id="35-single-dbcontext-ef-core-rules-repositories"></a>
+
 ### 3.5 Single DbContext, EF Core Rules & Repositories
 
 PharmacyDbContext has all stage DbSets and all module configurations. Each module owns its entity and `IEntityTypeConfiguration` files:
+
 - Configure Address with `OwnsOne` and prefixed columns.
 - Configure decimal precision, composite keys, indexes, unique and check constraints explicitly.
 - Configure `DeleteBehavior.Restrict` for all business FKs.
@@ -391,9 +417,10 @@ PharmacyDbContext has all stage DbSets and all module configurations. Each modul
 Generic repositories are acceptable for simple category/employee/supplier list CRUD. Use custom repository methods for inventory locking/FEFO, atomic sale completion, purchase receiving/payment, return/refund posting, and local/cloud synchronization. Those workflows need business queries and transactions a generic CRUD wrapper cannot express cleanly.
 
 <a id="36-conceptual-erp-domain-model-erd-overview"></a>
+
 ### 3.6 Conceptual ERP Domain Model & ERD Overview
 
-~~~mermaid
+```mermaid
 erDiagram
  ORGANIZATION ||--o{ BRANCH : owns
  ORGANIZATION ||--o{ PRODUCT : scopes
@@ -437,37 +464,41 @@ erDiagram
  INVENTORY_LOCATION ||--o{ VENDOR_RETURN_LINE : location
  VENDOR_RETURN ||--o{ INVENTORY_TXN : return_to_supplier
  INVENTORY_TXN ||--o| INVENTORY_TXN : reverses
-~~~
+```
 
 This is an orientation view; the chapters below define physical fields and composite organization-aware foreign keys. Every tenant-owned row includes `organization_id`. A branch-scoped row also carries `branch_id` where needed. Tenant scope comes from authenticated Organization context; sync messages carry scope metadata for validation but cannot select another tenant. The per-branch sync credential is configuration for the local runtime, not a POS-terminal business table.
 
-| Table / canonical concept | Stage-model mapping | Notes |
-| --- | --- | --- |
-| Product | catalog.PRODUCT, PRODUCT_CATEGORY, PRODUCT_UOM | UOM conversions and base-unit quantity are explicit. |
-| InventoryItem | inventory.STOCK_BALANCE joined with INVENTORY_LOCATION and INVENTORY_BATCH | API projection; availability is derived from eligible on-hand stock because the MVP has no reservations. |
-| StockMovement | inventory.INVENTORY_TXN / INVENTORY_TXN_LINE | Append-only ledger; balance is updated in the same transaction and can be reconciled. |
-| Sale / SaleLine | sales.SALES_ORDER, SALES_INVOICE, and their lines | Cashier order is the cart; completion creates the immutable invoice/sale fact and stock issue. |
-| SaleReturn / SaleReturnLine / Refund | sales.SALES_RETURN, SALES_RETURN_LINE, SALES_REFUND | A return references the original invoice and produces its own stock/refund records; the invoice is not replaced. |
-| Supplier | purchasing.SUPPLIER | Legal/tax/contact fields and an owned Address value; row carries organization_id. |
-| PurchaseOrder / lines | purchasing.PURCHASE_ORDER / PURCHASE_ORDER_LINE | Stage 3 owns partial receipt quantities, totals, payments, and typed inventory links. |
-| Employee / UserAccount | identity.EMPLOYEE / USER_ACCOUNT | Employee identity is separate from login credentials; history retains employee FKs. |
-| SyncOperation | integration.SYNC_OUTBOX / SYNC_INBOX | Durable local-to-cloud operation delivery and cloud duplicate detection; not exposed to external consumers. |
-| OutboxEvent / AuditLog | integration.OUTBOX_EVENT / AUDIT_LOG | ERP-owned integration and audit records. |
-| OutboxEventCursor | integration.OUTBOX_EVENT_CURSOR | Organization change-sequence allocator in the cloud database; separate from the branch synchronization cursor. |
+| Table / canonical concept            | Stage-model mapping                                                        | Notes                                                                                                            |
+| ------------------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Product                              | catalog.PRODUCT, PRODUCT_CATEGORY, PRODUCT_UOM                             | UOM conversions and base-unit quantity are explicit.                                                             |
+| InventoryItem                        | inventory.STOCK_BALANCE joined with INVENTORY_LOCATION and INVENTORY_BATCH | API projection; availability is derived from eligible on-hand stock because the MVP has no reservations.         |
+| StockMovement                        | inventory.INVENTORY_TXN / INVENTORY_TXN_LINE                               | Append-only ledger; balance is updated in the same transaction and can be reconciled.                            |
+| Sale / SaleLine                      | sales.SALES_ORDER, SALES_INVOICE, and their lines                          | Cashier order is the cart; completion creates the immutable invoice/sale fact and stock issue.                   |
+| SaleReturn / SaleReturnLine / Refund | sales.SALES_RETURN, SALES_RETURN_LINE, SALES_REFUND                        | A return references the original invoice and produces its own stock/refund records; the invoice is not replaced. |
+| Supplier                             | purchasing.SUPPLIER                                                        | Legal/tax/contact fields and an owned Address value; row carries organization_id.                                |
+| PurchaseOrder / lines                | purchasing.PURCHASE_ORDER / PURCHASE_ORDER_LINE                            | Stage 3 owns partial receipt quantities, totals, payments, and typed inventory links.                            |
+| Employee / UserAccount               | identity.EMPLOYEE / USER_ACCOUNT                                           | Employee identity is separate from login credentials; history retains employee FKs.                              |
+| SyncOperation                        | integration.SYNC_OUTBOX / SYNC_INBOX                                       | Durable local-to-cloud operation delivery and cloud duplicate detection; not exposed to external consumers.      |
+| OutboxEvent / AuditLog               | integration.OUTBOX_EVENT / AUDIT_LOG                                       | ERP-owned integration and audit records.                                                                         |
+| OutboxEventCursor                    | integration.OUTBOX_EVENT_CURSOR                                            | Organization change-sequence allocator in the cloud database; separate from the branch synchronization cursor.   |
 
 <a id="4-branch-offline-operation-data-synchronization"></a>
+
 ## 4. Branch Offline Operation & Data Synchronization
 
 <a id="41-offline-pos-architecture-execution-model"></a>
+
 ### 4.1 Offline POS Architecture & Execution Model
 
 Each pharmacy branch operates one POS device equipped with a branch-local PostgreSQL ERP database and branch-local .NET API runtime:
+
 - **Cashier Continuity:** If Internet connectivity is lost, cashiers continue scanning products, calculating totals, creating sales orders, taking cash payments, issuing receipts, and accepting returns against local stock.
 - **Local Transaction Atomicity:** Each posted local operation (sales order completion, cash payment, stock issue) and its corresponding `SYNC_OUTBOX` entry commit together in the local database transaction.
 - **No Direct Cloud Dependency:** Offline sales do not perform synchronous calls to the cloud ERP. The local database maintains the branch's authoritative stock projection while disconnected.
 - **Brain Isolation:** External consumers never connect to branch-local databases or sync tables; authorized consolidated reads use the Canonical API.
 
 <a id="42-durable-operation-queues-sync_outbox-and-sync_inbox"></a>
+
 ### 4.2 Durable Operation Queues: SYNC_OUTBOX and SYNC_INBOX
 
 Branch offline synchronization uses an asynchronous, durable outbox/inbox pattern:
@@ -486,6 +517,7 @@ Cloud ERP API -> Check SYNC_INBOX (Deduplication) -> Apply to erp_db -> Acknowle
 #### Schema Definitions:
 
 ##### integration.SYNC_OUTBOX (Branch-Local Database)
+
 - `operation_id`: UUID PK (stable identifier generated at operation time)
 - `organization_id`: UUID FK
 - `branch_id`: UUID FK
@@ -501,6 +533,7 @@ Cloud ERP API -> Check SYNC_INBOX (Deduplication) -> Apply to erp_db -> Acknowle
 - `last_error`: varchar(500) nullable
 
 ##### integration.SYNC_INBOX (Cloud Database)
+
 - `operation_id`: UUID PK (matches branch `operation_id`)
 - `organization_id`: UUID FK
 - `branch_id`: UUID FK
@@ -514,6 +547,7 @@ Cloud ERP API -> Check SYNC_INBOX (Deduplication) -> Apply to erp_db -> Acknowle
 - Unique `(organization_id, branch_id, branch_sequence)`; operation ID is the idempotent primary key.
 
 ##### integration.IDEMPOTENCY_RECORD (Cloud and Branch-Local Database)
+
 - `idempotency_record_id`: UUID PK
 - `organization_id`: UUID NOT NULL
 - `branch_id`: UUID nullable for organization-wide commands
@@ -525,6 +559,7 @@ Cloud ERP API -> Check SYNC_INBOX (Deduplication) -> Apply to erp_db -> Acknowle
 - Unique `(organization_id, branch_id, operation_scope, idempotency_key)` for non-null branch IDs; a separate unique index `(organization_id, operation_scope, idempotency_key)` applies where branch_id IS NULL. Same key/hash returns stored response, different hash is rejected. The Application command service claims/checks the idempotency key before executing business mutations and writes the persistent result and business rows in one database transaction; it is not a post-action middleware/filter. A failed transaction leaves neither business changes nor a success idempotency result. Same-key retries cannot execute a committed operation twice. This table is for mutating business commands, not login or token refresh.
 
 ##### integration.SYNC_BRANCH_CURSOR (Cloud and Branch-Local Database)
+
 - `(organization_id, branch_id)`: composite PK
 - `last_issued_sequence`: bigint NOT NULL DEFAULT 0
 - `last_applied_sequence`: bigint NOT NULL DEFAULT 0
@@ -534,6 +569,7 @@ Cloud ERP API -> Check SYNC_INBOX (Deduplication) -> Apply to erp_db -> Acknowle
 - Cloud-to-branch changes use the separate organization-scoped `OUTBOX_EVENT_CURSOR`/`OUTBOX_EVENT.event_sequence`; this is not the branch operation sequence and is not stored in `BRANCH`. The branch persists `last_applied_cloud_cursor` in the same local transaction that applies the entire returned change page. Replaying a page from the prior cursor is idempotent. If the cloud cannot serve an expired cursor, it returns `SYNC_CURSOR_EXPIRED`; the branch performs a controlled reference/PO resnapshot while retaining local business history and pending outbox operations.
 
 <a id="421-conditional-serialized-text-payload-protocol"></a>
+
 ### 4.2.1 Conditional Serialized-Text Payload Protocol
 
 The current synchronization contract remains `payload jsonb` plus a SHA-256 hash of the versioned typed payload serialized by the pinned canonical JSON algorithm (§4.2, §8.9.2). The following envelope is a preferred conditional protocol design only; it does not replace the current DTO, `payload`, or hash contract and is not finalized until protocol compatibility review and tests pass:
@@ -545,6 +581,7 @@ The current synchronization contract remains `payload jsonb` plus a SHA-256 hash
 - Existing clients that send JSONB/canonical typed payload remain supported under their existing payload version. A new protocol version must be introduced; migration requires a compatibility window with version-aware readers, unchanged v1 behavior, client capability/rollout inventory, rollback path and demonstrated mixed-version interoperability. No client upgrade or storage migration is implied until the review is approved.
 
 <a id="43-synchronization-flow-delta-feeds-conflict-policy"></a>
+
 ### 4.3 Synchronization Flow, Delta Feeds & Conflict Policy
 
 1. **Local Commit & Queueing:** Each posted local operation and its `SYNC_OUTBOX` entry commit together. If Internet is unavailable, the POS continues operating against its local stock projection.
@@ -553,34 +590,40 @@ The current synchronization contract remains `payload jsonb` plus a SHA-256 hash
 4. **Pull Synchronization (Cloud -> Branch):** `GET /api/v1/sync/bootstrap` and `GET /api/v1/sync/changes` return organization- and branch-scoped identity/security provisioning data through the protected enrollment channel, product/UOM/price/tax/reference data, and approved/orderable purchase-order snapshots/deltas. They never return an opening-balance fact or stock snapshot to be applied as branch stock. The branch records its actual opening count and cost as locally authorized `OPENING_BALANCE` ledger transactions; the branch remains unavailable for sales until enrollment, required reference data, and local opening-balance setup are committed. A zero-opening-stock branch may be enabled with zero stock. Local opening facts synchronize to cloud through the normal ordered outbox. Any cloud stock projection is a cloud-side read model and is never applied by the branch. Branch changes are applied idempotently against the saved feed cursor.
 5. **Acknowledgment:** The branch marks an operation synchronized in `SYNC_OUTBOX` (`synced_at = now`) only after receiving explicit cloud acknowledgment.
 6. **Conflict Policy:**
- - The cloud does not accept branch stock mutations. An adjustment, receipt, sale, return, or vendor return must be executed by the owning branch-local runtime; cloud routes return a runtime-unavailable response rather than mutate the projection.
- - A deterministic conflict is persisted and audited at the current sequence. It does not consume or advance `last_applied_sequence`; the conflicting operation remains at the branch queue head and later operations stay blocked, because skipping it would make the cloud ledger incomplete. Transient transport/server failures use bounded exponential backoff; deterministic conflicts do not loop automatically.
- - `POST /api/v1/sync/operations/{operationId}/retry` is available to an authorized cloud synchronization administrator after the underlying compatibility/reference-data issue is corrected. It reprocesses the exact typed payload retained in SYNC_INBOX for the immutable operation ID, sequence, payload version, and payload hash; it cannot edit or skip the operation. Success advances the cursor and unblocks later operations. For irreparable or tampered payloads, operator recovery means restoring the exact immutable outbox row (operation ID, sequence, payload version, canonical payload, and hash) from a verified branch backup, then retrying it. If no exact copy exists, the sequence remains blocked indefinitely; the MVP defines no edit, skip, or consume-as-rejected path.
- - A catalog change that conflicts with a locally posted document, or an inconsistent synchronized transaction fact, becomes an explicit review state. The sync worker must not silently edit posted local documents. The source operation, conflict reason, retry/recovery action, and outcome are audited.
+
+- The cloud does not accept branch stock mutations. An adjustment, receipt, sale, return, or vendor return must be executed by the owning branch-local runtime; cloud routes return a runtime-unavailable response rather than mutate the projection.
+- A deterministic conflict is persisted and audited at the current sequence. It does not consume or advance `last_applied_sequence`; the conflicting operation remains at the branch queue head and later operations stay blocked, because skipping it would make the cloud ledger incomplete. Transient transport/server failures use bounded exponential backoff; deterministic conflicts do not loop automatically.
+- `POST /api/v1/sync/operations/{operationId}/retry` is available to an authorized cloud synchronization administrator after the underlying compatibility/reference-data issue is corrected. It reprocesses the exact typed payload retained in SYNC_INBOX for the immutable operation ID, sequence, payload version, and payload hash; it cannot edit or skip the operation. Success advances the cursor and unblocks later operations. For irreparable or tampered payloads, operator recovery means restoring the exact immutable outbox row (operation ID, sequence, payload version, canonical payload, and hash) from a verified branch backup, then retrying it. If no exact copy exists, the sequence remains blocked indefinitely; the MVP defines no edit, skip, or consume-as-rejected path.
+- A catalog change that conflicts with a locally posted document, or an inconsistent synchronized transaction fact, becomes an explicit review state. The sync worker must not silently edit posted local documents. The source operation, conflict reason, retry/recovery action, and outcome are audited.
 
 <a id="44-synchronization-endpoints-data-contracts"></a>
+
 ### 4.4 Synchronization Endpoints & Data Contracts
 
-| Method and route | Direction | Purpose | Request Body / Parameters | Response |
-|---|---|---|---|---|
-| `POST /api/v1/sync/operations/{operationId}/retry` | Admin -> Cloud | Retry exact immutable conflicting head operation after recovery; requires sync-admin scope and reason; cannot alter/skip operation | Operation ID and audited reason | Current per-operation result; success advances cursor only after exact payload applies |
-| `POST /api/v1/sync/operations` | Branch -> Cloud | Ordered batch delivery of pending branch operations; requires enrolled branch credentials | `SyncOperationBatchRequest` (`organization_id`, `branch_id`, list of `operation_id`, `branch_sequence`, `operation_type`, `payload_version`, `payload_hash`, `payload`, `created_at`); body scope must match enrollment | Per-operation `SyncOperationResultDto` (`operation_id`, `branch_sequence`, status: `APPLIED` / `ALREADY_APPLIED` / `CONFLICT` / `FAILED`, `expected_next_sequence` when a gap exists, typed details); batch acknowledgment includes highest contiguous applied cursor |
-| `GET /api/v1/sync/bootstrap` | Branch calls Cloud; response Cloud -> Branch | Initial full branch snapshot on enrollment; requires enrolled branch credentials | Query: `branchId`; organization is derived from enrollment, not a trusted client parameter | Catalog, UOM sale price/product tax rate, reference data, applicable PO snapshots, identity/security data through the protected enrollment channel, and initial sync cursors; no stock projection or opening-balance facts. Branch-local opening balance must be posted from an authorized local stock count before sales are enabled |
-| `GET /api/v1/sync/changes` | Branch calls Cloud; response Cloud -> Branch | Cursor-based delta feed for the enrolled branch | Query: `branchId`, opaque `sinceCursor`; organization is derived from enrollment | Changed reference/catalog records, authorized identity/security changes, approved/orderable PO snapshots, and deactivations, plus opaque `nextCursor` bound to the last scanned committed organization `event_sequence`; branch applies each page atomically and idempotently. The server captures a committed high-water sequence, pages events in sequence order, advances `nextCursor` over scanned entries even when branch filtering yields no body item, and replays a request from the prior cursor deterministically. The serialized allocator prevents a later commit from appearing behind an already-issued cursor. Expired cursors return `SYNC_CURSOR_EXPIRED` and require controlled resnapshot. |
+| Method and route                                   | Direction                                    | Purpose                                                                                                                            | Request Body / Parameters                                                                                                                                                                                               | Response                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/sync/operations/{operationId}/retry` | Admin -> Cloud                               | Retry exact immutable conflicting head operation after recovery; requires sync-admin scope and reason; cannot alter/skip operation | Operation ID and audited reason                                                                                                                                                                                         | Current per-operation result; success advances cursor only after exact payload applies                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `POST /api/v1/sync/operations`                     | Branch -> Cloud                              | Ordered batch delivery of pending branch operations; requires enrolled branch credentials                                          | `SyncOperationBatchRequest` (`organization_id`, `branch_id`, list of `operation_id`, `branch_sequence`, `operation_type`, `payload_version`, `payload_hash`, `payload`, `created_at`); body scope must match enrollment | Per-operation `SyncOperationResultDto` (`operation_id`, `branch_sequence`, status: `APPLIED` / `ALREADY_APPLIED` / `CONFLICT` / `FAILED`, `expected_next_sequence` when a gap exists, typed details); batch acknowledgment includes highest contiguous applied cursor                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /api/v1/sync/bootstrap`                       | Branch calls Cloud; response Cloud -> Branch | Initial full branch snapshot on enrollment; requires enrolled branch credentials                                                   | Query: `branchId`; organization is derived from enrollment, not a trusted client parameter                                                                                                                              | Catalog, UOM sale price/product tax rate, reference data, applicable PO snapshots, identity/security data through the protected enrollment channel, and initial sync cursors; no stock projection or opening-balance facts. Branch-local opening balance must be posted from an authorized local stock count before sales are enabled                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /api/v1/sync/changes`                         | Branch calls Cloud; response Cloud -> Branch | Cursor-based delta feed for the enrolled branch                                                                                    | Query: `branchId`, opaque `sinceCursor`; organization is derived from enrollment                                                                                                                                        | Changed reference/catalog records, authorized identity/security changes, approved/orderable PO snapshots, and deactivations, plus opaque `nextCursor` bound to the last scanned committed organization `event_sequence`; branch applies each page atomically and idempotently. The server captures a committed high-water sequence, pages events in sequence order, advances `nextCursor` over scanned entries even when branch filtering yields no body item, and replays a request from the prior cursor deterministically. The serialized allocator prevents a later commit from appearing behind an already-issued cursor. Expired cursors return `SYNC_CURSOR_EXPIRED` and require controlled resnapshot. |
 
 ---
+
 <a id="5-stage-1-specification-organization-identity-catalog-inventory-ledger"></a>
+
 ## 5. Stage 1 Specification — Organization, Identity, Catalog & Inventory Ledger
 
 <a id="51-stage-purpose-tenant-root"></a>
+
 ### 5.1 Stage Purpose & Tenant Root
 
 Create the tenant root, initial branch, users, catalog, stock locations/lots, append-only inventory ledger, and current balance projection. Each pharmacy is an Organization and a tenant in the shared cloud database. Every tenant-owned row carries organization_id; branch operations also carry branch_id. The database and Application layer both enforce tenant scope.
 
 <a id="52-database-schema-erd"></a>
+
 ### 5.2 Database Schema & ERD
 
-~~~mermaid
+```mermaid
 erDiagram
  ORGANIZATION ||--o{ BRANCH : owns
  BRANCH ||--o{ EMPLOYEE : employs
@@ -800,46 +843,49 @@ erDiagram
  jsonb after_data
  timestamptz created_at
  }
-~~~
+```
 
 <a id="53-exact-fields-constraints-indexes-navigation-properties"></a>
+
 ### 5.3 Exact Fields, Constraints, Indexes & Navigation Properties
 
 The following are logical schema requirements. Their physical database and EF Core enforcement remains a later implementation verification.
 
-| Table | Persisted fields and data types | Keys, unique/check constraints, precision | Navigation properties |
-|---|---|---|---|
-| identity.ORGANIZATION | organization_id uuid, organization_code varchar(30), name varchar(150), base_currency char(3), time_zone_id varchar(64) NOT NULL, Address line1/line2/city/region/postal/country, is_active bool, created_at/updated_at timestamptz | PK organization_id; unique organization_code; valid IANA time zone | Branches |
-| identity.BRANCH | organization_id uuid, branch_id uuid, branch_code varchar(30), name varchar(150), Address, is_active bool, timestamps | PK branch_id; unique organization_id+branch_code; unique organization_id+branch_id for scoped FKs; Organization FK | Organization, Employees, Locations, ReorderRules |
-| identity.EMPLOYEE | organization_id uuid, employee_id uuid, branch_id uuid, employee_no varchar(30), full_name varchar(150), email varchar(254) nullable, phone varchar(30) nullable, job_title varchar(80), Address, hired_on date, is_active bool, timestamps | PK employee_id; unique organization_id+branch_id+employee_no; unique organization_id+branch_id+employee_id for home-branch references; unique organization_id+employee_id for actor/creator references; composite FK organization_id+branch_id | Branch, UserAccount, authored transactions |
-| identity.USER_ACCOUNT | organization_id uuid, user_id uuid, employee_id uuid, username varchar(80), normalized_username varchar(80), password_hash varchar(500), role varchar(30), branch_scope varchar(10), is_active bool, access_failed_count int, lockout_end timestamptz nullable, last_login_at nullable, timestamps | PK user_id; unique organization_id+user_id; unique organization_id+normalized_username; unique organization_id+employee_id; composite FK organization_id+employee_id; role CHECK in Admin/Pharmacist/Cashier; branch_scope CHECK in ALL/ASSIGNED; CHECK (branch_scope <> 'ALL' OR role = 'Admin') | Employee, BranchAccess, RefreshTokens |
-| identity.USER_BRANCH_ACCESS | organization_id uuid, user_id uuid, branch_id uuid | PK organization_id+user_id+branch_id; FKs to UserAccount and Branch; assigned scope only | UserAccount, Branch |
-| identity.BRANCH_ENROLLMENT | enrollment_id uuid, organization_id uuid, branch_id uuid, token_hash bytea, expires_at timestamptz, used_at timestamptz nullable, created_at timestamptz | PK; organization-aware Branch FK; unique token_hash; single-use short-lived enrollment credential | Branch |
-| identity.USER_REFRESH_TOKEN | refresh_token_id uuid, organization_id uuid, user_id uuid, token_hash bytea, token_family_id uuid, issued_at/expires_at timestamptz, consumed_at/revoked_at timestamptz nullable, created_at timestamptz | PK refresh_token_id; composite UserAccount FK; unique token_hash; expires_at > issued_at; reuse revokes family | UserAccount |
-| catalog.PRODUCT_CATEGORY | organization_id uuid, category_id uuid, parent_category_id uuid nullable, code varchar(30), name varchar(100), description varchar(250) nullable, is_active bool, timestamps | PK category_id; unique organization_id+code; composite self-FK organization_id+parent_category_id; no self-parent CHECK (parent_category_id <> category_id) | Parent, Children, Products |
-| catalog.PRODUCT | organization_id uuid, product_id uuid, category_id uuid, sku varchar(40), barcode varchar(80) nullable, name varchar(180), generic_name varchar(180) nullable, brand_name varchar(180) nullable, base_uom_code varchar(20), tax_rate numeric(9,4) NOT NULL DEFAULT 0, image_url varchar(300) nullable, lot_tracking_required bool, expiry_alert_days int, is_active bool, timestamps | PK product_id; unique organization_id+sku; unique organization_id+barcode (NULLs ignored); composite Category FK organization_id+category_id; tax_rate CHECK 0 <= tax_rate <= 1; alert days >= 0 | Category, UOMs, batches, stock and transaction lines |
-| catalog.PRODUCT_UOM | organization_id uuid, product_uom_id uuid, product_id uuid, uom_code varchar(20), display_name varchar(50), conversion_to_base numeric(18,6), sale_unit_price numeric(18,4) nullable, is_base bool, is_sellable bool, is_purchasable bool, is_active bool, timestamps | PK product_uom_id; unique organization_id+product_id+uom_code; alternate key organization_id+product_id+product_uom_id; conversion>0; sellable requires nonnegative price; one active base UOM per product with conversion_to_base = 1 | Product, inventory and document lines |
-| catalog.PRODUCT_REORDER_RULE | organization_id uuid, reorder_rule_id uuid, product_id uuid, branch_id uuid, reorder_point_base numeric(18,4), reorder_quantity_base numeric(18,4), max_quantity_base numeric(18,4) nullable, is_active bool, timestamps | PK reorder_rule_id; composite Product and Branch FKs; unique organization_id+product_id+branch_id; quantities nonnegative; max_quantity_base IS NULL OR max_quantity_base >= reorder_point_base | Product, Branch |
-| inventory.INVENTORY_LOCATION | organization_id uuid, location_id uuid, branch_id uuid, location_code varchar(30), name varchar(100), location_type varchar(25), is_sellable bool, is_active bool, timestamps | PK location_id; alternate key organization_id+branch_id+location_id; composite Branch FK organization_id+branch_id; unique organization_id+branch_id+location_code | Branch, StockBalances, TxnLines |
-| inventory.INVENTORY_BATCH | organization_id uuid, batch_id uuid, product_id uuid, batch_number varchar(80), manufactured_on date nullable, expires_on date nullable, quality_status varchar(25), timestamps | PK batch_id; alternate key organization_id+product_id+batch_id; composite Product FK organization_id+product_id; unique organization_id+product_id+batch_number+expires_on, with NULL expiry treated as not distinct; manufactured<=expires; status in AVAILABLE/QUARANTINED/EXPIRED/RECALLED | Product, StockBalances, TxnLines |
-| inventory.STOCK_BALANCE | organization_id uuid, location_id uuid, batch_id uuid, on_hand_qty_base/average_unit_cost numeric(18,4), row_version bigint, updated_at | Composite PK organization_id+location_id+batch_id; scoped Location/Batch FKs; on_hand>=0; cost>=0 | Location, Batch |
-| inventory.INVENTORY_TXN | organization_id uuid, inventory_txn_id uuid, branch_id uuid, transaction_no varchar(40), transaction_type varchar(30), status varchar(20), reason_code varchar(40) nullable, note varchar(500) nullable, idempotency_key varchar(100), created_by_employee_id uuid, reverses_inventory_txn_id uuid nullable, posted_at nullable | PK; unique organization_id+inventory_txn_id+branch_id, organization_id+branch_id+transaction_no, and organization_id+branch_id+transaction_type+idempotency_key; creator FK is organization+employee; target branch authorization is checked in Application; DRAFT/POSTED/CANCELLED; posted rows immutable | Branch, Employee, Lines; Stage 2/3 source links |
-| inventory.INVENTORY_TXN_LINE | organization_id uuid, inventory_txn_line_id uuid, inventory_txn_id uuid, branch_id uuid, product_id uuid, location_id uuid, batch_id NOT NULL (NON-LOT sentinel where applicable), product_uom_id uuid, entered_qty numeric(18,4), conversion_snapshot numeric(18,6), quantity_delta_base numeric(18,4), unit_cost_base numeric(18,4) | PK; FK `(organization_id,inventory_txn_id,branch_id)` to transaction; same-product UOM/batch and same-branch location composite FKs; entered qty/factor >0; delta !=0; CHECK (abs(quantity_delta_base) = round(entered_qty * conversion_snapshot, 4)); lot-tracked product requires batch | Txn, Product, Location, Batch, UOM |
-| integration.OUTBOX_EVENT_CURSOR | organization_id uuid PK/FK, last_event_sequence bigint NOT NULL DEFAULT 0, updated_at timestamptz | One cloud allocator row per Organization; nonnegative sequence | Allocates durable cloud change-feed positions |
-| integration.OUTBOX_EVENT | event_id uuid, organization_id uuid, branch_id uuid nullable (NULL means organization-wide), event_sequence bigint NOT NULL, event_type varchar(80), schema_version varchar(20), payload jsonb, occurred_at timestamptz, published_at timestamptz nullable, attempt_count int, last_error varchar(500) nullable, trace_id varchar(100) | PK; unique organization_id+event_sequence; attempt_count >= 0; publisher/feed index | ERP-internal event record and feed source; never directly exposed |
-| integration.IDEMPOTENCY_RECORD | idempotency_record_id uuid, organization_id uuid, branch_id nullable, operation_scope varchar(100), idempotency_key varchar(100), payload_hash char(64), response_body jsonb, created_at timestamptz | PK; unique organization/branch/operation/key, with separate partial unique index for NULL branch | None |
-| integration.AUDIT_LOG | audit_log_id uuid, organization_id uuid, branch_id uuid nullable, actor_user_id uuid nullable, actor_employee_id uuid nullable, actor_type varchar(20), action varchar(80), entity_schema varchar(63), entity_name varchar(100), entity_id uuid, source_prompt_id varchar(100) nullable, before_data/after_data jsonb nullable, trace_id varchar(100), created_at timestamptz | PK; composite actor FKs; append-only; organization/branch/entity/actor/date indexes | Organization, UserAccount, Employee where present |
+| Table                           | Persisted fields and data types                                                                                                                                                                                                                                                                                                                                                      | Keys, unique/check constraints, precision                                                                                                                                                                                                                                                                  | Navigation properties                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| identity.ORGANIZATION           | organization_id uuid, organization_code varchar(30), name varchar(150), base_currency char(3), time_zone_id varchar(64) NOT NULL, Address line1/line2/city/region/postal/country, is_active bool, created_at/updated_at timestamptz                                                                                                                                                  | PK organization_id; unique organization_code; valid IANA time zone                                                                                                                                                                                                                                         | Branches                                                          |
+| identity.BRANCH                 | organization_id uuid, branch_id uuid, branch_code varchar(30), name varchar(150), Address, is_active bool, timestamps                                                                                                                                                                                                                                                                | PK branch_id; unique organization_id+branch_code; unique organization_id+branch_id for scoped FKs; Organization FK                                                                                                                                                                                         | Organization, Employees, Locations, ReorderRules                  |
+| identity.EMPLOYEE               | organization_id uuid, employee_id uuid, branch_id uuid, employee_no varchar(30), full_name varchar(150), email varchar(254) nullable, phone varchar(30) nullable, job_title varchar(80), Address, hired_on date, is_active bool, timestamps                                                                                                                                          | PK employee_id; unique organization_id+branch_id+employee_no; unique organization_id+branch_id+employee_id for home-branch references; unique organization_id+employee_id for actor/creator references; composite FK organization_id+branch_id                                                             | Branch, UserAccount, authored transactions                        |
+| identity.USER_ACCOUNT           | organization_id uuid, user_id uuid, employee_id uuid, username varchar(80), normalized_username varchar(80), password_hash varchar(500), role varchar(30), branch_scope varchar(10), is_active bool, access_failed_count int, lockout_end timestamptz nullable, last_login_at nullable, timestamps                                                                                   | PK user_id; unique organization_id+user_id; unique organization_id+normalized_username; unique organization_id+employee_id; composite FK organization_id+employee_id; role CHECK in Admin/Pharmacist/Cashier; branch_scope CHECK in ALL/ASSIGNED; CHECK (branch_scope <> 'ALL' OR role = 'Admin')          | Employee, BranchAccess, RefreshTokens                             |
+| identity.USER_BRANCH_ACCESS     | organization_id uuid, user_id uuid, branch_id uuid                                                                                                                                                                                                                                                                                                                                   | PK organization_id+user_id+branch_id; FKs to UserAccount and Branch; assigned scope only                                                                                                                                                                                                                   | UserAccount, Branch                                               |
+| identity.BRANCH_ENROLLMENT      | enrollment_id uuid, organization_id uuid, branch_id uuid, token_hash bytea, expires_at timestamptz, used_at timestamptz nullable, created_at timestamptz                                                                                                                                                                                                                             | PK; organization-aware Branch FK; unique token_hash; single-use short-lived enrollment credential                                                                                                                                                                                                          | Branch                                                            |
+| identity.USER_REFRESH_TOKEN     | refresh_token_id uuid, organization_id uuid, user_id uuid, token_hash bytea, token_family_id uuid, issued_at/expires_at timestamptz, consumed_at/revoked_at timestamptz nullable, created_at timestamptz                                                                                                                                                                             | PK refresh_token_id; composite UserAccount FK; unique token_hash; expires_at > issued_at; reuse revokes family                                                                                                                                                                                             | UserAccount                                                       |
+| catalog.PRODUCT_CATEGORY        | organization_id uuid, category_id uuid, parent_category_id uuid nullable, code varchar(30), name varchar(100), description varchar(250) nullable, is_active bool, timestamps                                                                                                                                                                                                         | PK category_id; unique organization_id+code; composite self-FK organization_id+parent_category_id; no self-parent CHECK (parent_category_id <> category_id)                                                                                                                                                | Parent, Children, Products                                        |
+| catalog.PRODUCT                 | organization_id uuid, product_id uuid, category_id uuid, sku varchar(40), barcode varchar(80) nullable, name varchar(180), generic_name varchar(180) nullable, brand_name varchar(180) nullable, base_uom_code varchar(20), tax_rate numeric(9,4) NOT NULL DEFAULT 0, image_url varchar(300) nullable, lot_tracking_required bool, expiry_alert_days int, is_active bool, timestamps | PK product_id; unique organization_id+sku; unique organization_id+barcode (NULLs ignored); composite Category FK organization_id+category_id; tax_rate CHECK 0 <= tax_rate <= 1; alert days >= 0                                                                                                           | Category, UOMs, batches, stock and transaction lines              |
+| catalog.PRODUCT_UOM             | organization_id uuid, product_uom_id uuid, product_id uuid, uom_code varchar(20), display_name varchar(50), conversion_to_base numeric(18,6), sale_unit_price numeric(18,4) nullable, is_base bool, is_sellable bool, is_purchasable bool, is_active bool, timestamps                                                                                                                | PK product_uom_id; unique organization_id+product_id+uom_code; alternate key organization_id+product_id+product_uom_id; conversion>0; sellable requires nonnegative price; one active base UOM per product with conversion_to_base = 1                                                                     | Product, inventory and document lines                             |
+| catalog.PRODUCT_REORDER_RULE    | organization_id uuid, reorder_rule_id uuid, product_id uuid, branch_id uuid, reorder_point_base numeric(18,4), reorder_quantity_base numeric(18,4), max_quantity_base numeric(18,4) nullable, is_active bool, timestamps                                                                                                                                                             | PK reorder_rule_id; composite Product and Branch FKs; unique organization_id+product_id+branch_id; quantities nonnegative; max_quantity_base IS NULL OR max_quantity_base >= reorder_point_base                                                                                                            | Product, Branch                                                   |
+| inventory.INVENTORY_LOCATION    | organization_id uuid, location_id uuid, branch_id uuid, location_code varchar(30), name varchar(100), location_type varchar(25), is_sellable bool, is_active bool, timestamps                                                                                                                                                                                                        | PK location_id; alternate key organization_id+branch_id+location_id; composite Branch FK organization_id+branch_id; unique organization_id+branch_id+location_code                                                                                                                                         | Branch, StockBalances, TxnLines                                   |
+| inventory.INVENTORY_BATCH       | organization_id uuid, batch_id uuid, product_id uuid, batch_number varchar(80), manufactured_on date nullable, expires_on date nullable, quality_status varchar(25), timestamps                                                                                                                                                                                                      | PK batch_id; alternate key organization_id+product_id+batch_id; composite Product FK organization_id+product_id; unique organization_id+product_id+batch_number+expires_on, with NULL expiry treated as not distinct; manufactured<=expires; status in AVAILABLE/QUARANTINED/EXPIRED/RECALLED              | Product, StockBalances, TxnLines                                  |
+| inventory.STOCK_BALANCE         | organization_id uuid, location_id uuid, batch_id uuid, on_hand_qty_base/average_unit_cost numeric(18,4), row_version bigint, updated_at                                                                                                                                                                                                                                              | Composite PK organization_id+location_id+batch_id; scoped Location/Batch FKs; on_hand>=0; cost>=0                                                                                                                                                                                                          | Location, Batch                                                   |
+| inventory.INVENTORY_TXN         | organization_id uuid, inventory_txn_id uuid, branch_id uuid, transaction_no varchar(40), transaction_type varchar(30), status varchar(20), reason_code varchar(40) nullable, note varchar(500) nullable, idempotency_key varchar(100), created_by_employee_id uuid, reverses_inventory_txn_id uuid nullable, posted_at nullable                                                      | PK; unique organization_id+inventory_txn_id+branch_id, organization_id+branch_id+transaction_no, and organization_id+branch_id+transaction_type+idempotency_key; creator FK is organization+employee; target branch authorization is checked in Application; DRAFT/POSTED/CANCELLED; posted rows immutable | Branch, Employee, Lines; Stage 2/3 source links                   |
+| inventory.INVENTORY_TXN_LINE    | organization_id uuid, inventory_txn_line_id uuid, inventory_txn_id uuid, branch_id uuid, product_id uuid, location_id uuid, batch_id NOT NULL (NON-LOT sentinel where applicable), product_uom_id uuid, entered_qty numeric(18,4), conversion_snapshot numeric(18,6), quantity_delta_base numeric(18,4), unit_cost_base numeric(18,4)                                                | PK; FK `(organization_id,inventory_txn_id,branch_id)` to transaction; same-product UOM/batch and same-branch location composite FKs; entered qty/factor >0; delta !=0; CHECK (abs(quantity_delta_base) = round(entered_qty * conversion_snapshot, 4)); lot-tracked product requires batch                  | Txn, Product, Location, Batch, UOM                                |
+| integration.OUTBOX_EVENT_CURSOR | organization_id uuid PK/FK, last_event_sequence bigint NOT NULL DEFAULT 0, updated_at timestamptz                                                                                                                                                                                                                                                                                    | One cloud allocator row per Organization; nonnegative sequence                                                                                                                                                                                                                                             | Allocates durable cloud change-feed positions                     |
+| integration.OUTBOX_EVENT        | event_id uuid, organization_id uuid, branch_id uuid nullable (NULL means organization-wide), event_sequence bigint NOT NULL, event_type varchar(80), schema_version varchar(20), payload jsonb, occurred_at timestamptz, published_at timestamptz nullable, attempt_count int, last_error varchar(500) nullable, trace_id varchar(100)                                               | PK; unique organization_id+event_sequence; attempt_count >= 0; publisher/feed index                                                                                                                                                                                                                        | ERP-internal event record and feed source; never directly exposed |
+| integration.IDEMPOTENCY_RECORD  | idempotency_record_id uuid, organization_id uuid, branch_id nullable, operation_scope varchar(100), idempotency_key varchar(100), payload_hash char(64), response_body jsonb, created_at timestamptz                                                                                                                                                                                 | PK; unique organization/branch/operation/key, with separate partial unique index for NULL branch                                                                                                                                                                                                           | None                                                              |
+| integration.AUDIT_LOG           | audit_log_id uuid, organization_id uuid, branch_id uuid nullable, actor_user_id uuid nullable, actor_employee_id uuid nullable, actor_type varchar(20), action varchar(80), entity_schema varchar(63), entity_name varchar(100), entity_id uuid, source_prompt_id varchar(100) nullable, before_data/after_data jsonb nullable, trace_id varchar(100), created_at timestamptz        | PK; composite actor FKs; append-only; organization/branch/entity/actor/date indexes                                                                                                                                                                                                                        | Organization, UserAccount, Employee where present                 |
 
 **Durable change-feed sequencing:** For each Organization, the cloud command transaction locks its `OUTBOX_EVENT_CURSOR` row, increments `last_event_sequence`, and inserts every resulting `OUTBOX_EVENT` with the assigned, strictly increasing `event_sequence` before committing the business mutation. The row lock is held until commit/rollback, so a later sequence cannot commit before an earlier one; a rollback also rolls back the counter update. Multiple events in one transaction receive consecutive sequence values. Every feed-visible mutation writes an event atomically, including deactivation/tombstone and identity/access changes; `branch_id` routes branch-scoped changes, and organization-wide changes are fanned out to each affected branch or explicitly included for all branch cursors. Events remain available at least until all applicable branch cursors have passed them; current retention rule keeps them with linked business history.
 
 **Required FEFO indexes:** `INVENTORY_LOCATION(organization_id,branch_id,is_sellable,location_id)`, `INVENTORY_BATCH(organization_id,product_id,quality_status,expires_on,batch_id)`, and `STOCK_BALANCE(organization_id,location_id,batch_id)` (the existing PK). Add `STOCK_BALANCE(organization_id,batch_id,location_id)` for batch reconciliation. Exact target tuples for composite FKs must have matching primary/unique constraints; DDL/EF implementation remains to be verified.
 
 <a id="54-product-reorder-rule-specification"></a>
+
 ### 5.4 Product Reorder Rule Specification
 
 PRODUCT_REORDER_RULE is an optional threshold and suggested replenishment quantity for a product at a branch. For example, if the reorder point is 10 and sellable stock reaches 8, an authorized consumer may recommend ordering the configured quantity. It does not change stock or create a purchase order. Its configuration and read contract are included in Stage 1; automatic purchase-order creation is not.
 
 <a id="55-stage-1-business-rules-invariants"></a>
+
 ### 5.5 Stage 1 Business Rules & Invariants
 
 - Stock is stored in the product base UOM. Document lines preserve entered UOM and conversion snapshot.
@@ -852,23 +898,25 @@ PRODUCT_REORDER_RULE is an optional threshold and suggested replenishment quanti
 - Users never edit STOCK_BALANCE directly. Initial stock and corrections are posted as inventory transactions with a reason and idempotency key. The opening-balance command is branch-local and requires the counted quantity, NON-LOT or real batch, location, and authorized unit-cost snapshot; Cloud never sends opening balances or stock snapshots to initialize a branch.
 
 <a id="56-stage-1-api-requestresponse-dto-contracts"></a>
+
 ### 5.6 Stage 1 API Request/Response DTO Contracts
 
-| DTO | Direction | Main fields |
-|---|---|---|
-| LoginRequest/Response | FE↔API | organization_code, username, password → access/refresh token, expiry, user, organization_id, branch_scope, authorized branch_ids, issuer, audience and key ID |
+| DTO                                         | Direction               | Main fields                                                                                                                                                                                                                           |
+| ------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LoginRequest/Response                       | FE↔API                  | organization_code, username, password → access/refresh token, expiry, user, organization_id, branch_scope, authorized branch_ids, issuer, audience and key ID                                                                         |
 | OrganizationDto / CreateOrganizationRequest | PlatformProvisioner→API | organization code/name, base currency, IANA time_zone_id, address; initial branch code/name/address; first Admin employee number/name, username, password; response returns organization, branch, user IDs and enrollment setup state |
-| BranchDto / BranchRequest | FE↔API | code, name, address; organization comes from authenticated scope |
-| EmployeeDto / EmployeeRequest | FE↔API | branch, employee number, name, contact, title, hired date, active |
-| ProductCategoryDto / Request | FE↔API | optional parent, code, name, description, active |
-| ProductDto / CreateProductRequest | FE↔API | category, SKU/barcode, name, base UOM, UOMs, image reference, lot/expiry settings |
-| ProductUomDto | API→FE | code, display name, factor, sale_unit_price, base/sellable/purchasable/active |
-| ReorderRuleDto / Request | FE↔API | product, branch, reorder point/quantity/max in base units |
-| InventorySummaryDto | API→FE | product/branch, on-hand/available, weighted cost, locations and lots |
-| InventoryTxnRequest/Dto | FE↔API | type, branch, reason, idempotency key, lines; response includes number, actor, time and posted lines |
-| PagedResult<T>/ApiErrorDto | API→FE | cursor/page and typed error envelope |
+| BranchDto / BranchRequest                   | FE↔API                  | code, name, address; organization comes from authenticated scope                                                                                                                                                                      |
+| EmployeeDto / EmployeeRequest               | FE↔API                  | branch, employee number, name, contact, title, hired date, active                                                                                                                                                                     |
+| ProductCategoryDto / Request                | FE↔API                  | optional parent, code, name, description, active                                                                                                                                                                                      |
+| ProductDto / CreateProductRequest           | FE↔API                  | category, SKU/barcode, name, base UOM, UOMs, image reference, lot/expiry settings                                                                                                                                                     |
+| ProductUomDto                               | API→FE                  | code, display name, factor, sale_unit_price, base/sellable/purchasable/active                                                                                                                                                         |
+| ReorderRuleDto / Request                    | FE↔API                  | product, branch, reorder point/quantity/max in base units                                                                                                                                                                             |
+| InventorySummaryDto                         | API→FE                  | product/branch, on-hand/available, weighted cost, locations and lots                                                                                                                                                                  |
+| InventoryTxnRequest/Dto                     | FE↔API                  | type, branch, reason, idempotency key, lines; response includes number, actor, time and posted lines                                                                                                                                  |
+| PagedResult<T>/ApiErrorDto                  | API→FE                  | cursor/page and typed error envelope                                                                                                                                                                                                  |
 
 <a id="57-stage-1-canonical-integration-contract"></a>
+
 ### 5.7 Stage 1 Canonical Integration Contract
 
 These requirements define only the .NET Canonical API contract; external consumer internals are outside this backend specification.
@@ -878,49 +926,55 @@ These requirements define only the .NET Canonical API contract; external consume
 - Canonical reads are paginated and support updated_since/cursor; the Brain never queries erp_db or branch-local databases.
 
 <a id="58-stage-1-api-endpoints"></a>
+
 ### 5.8 Stage 1 API Endpoints
 
 `POST /api/v1/organizations` requires a deployment-only PlatformProvisioner credential and atomically creates Organization, initial Branch, home-branch Employee, and first Admin; the credential cannot read tenant business data. Creation seeds one `SELLABLE`, one `QUARANTINE`, and one `SCRAP` location for the branch. Admin-only user endpoints provide `GET/POST /api/v1/users`, `GET/PATCH /api/v1/users/{userId}`, `POST /api/v1/users/{userId}/password-reset`, and `POST /api/v1/users/{userId}/revoke-sessions`. Admin issues a single-use short-lived branch token at `POST /api/v1/branches/{branchId}/enrollment-tokens` (organization is derived from the authenticated Admin context and the branch is authorized within it); branch runtime redeems it at `POST /api/v1/branch-enrollment` (redeem request token; returns organization_id, branch_id, runtime credential, initial sync cursor and credential expiry). Tokens are stored hashed in `identity.BRANCH_ENROLLMENT`; user credentials/role changes are sent only over the authenticated encrypted enrollment channel. `POST /api/v1/auth/logout` revokes the current refresh-token family. Locations support GET/POST/PATCH under `/api/v1/inventory/locations`; batches are read-only resources created by receipt/opening-balance ledger workflows, not arbitrary CRUD.
 
-| Method and route | Purpose |
-|---|---|
-| POST /api/v1/auth/login (organization_code, username, password); POST /api/v1/auth/refresh; POST /api/v1/auth/logout; GET /api/v1/auth/me | Authentication, token rotation/revocation, and current trusted scope |
-| POST /api/v1/organizations | PlatformProvisioner-only; atomically create Organization + first Branch + Employee + Admin |
-| GET/POST /api/v1/branches; GET/PATCH /api/v1/branches/{id}; POST /api/v1/branches/{branchId}/enrollment-tokens; POST /api/v1/branch-enrollment | Branch management and secure branch runtime enrollment |
-| GET/POST /api/v1/users; GET/PATCH /api/v1/users/{id}; POST /api/v1/users/{id}/password-reset; POST /api/v1/users/{id}/revoke-sessions | Admin-only account, role/access, password and session management |
-| GET/POST /api/v1/employees; GET/PATCH /api/v1/employees/{id} | Employee management |
-| GET/POST /api/v1/product-categories; GET/PATCH /api/v1/product-categories/{id} | Category management |
-| GET/POST /api/v1/products; GET/PATCH /api/v1/products/{id} | Product management |
-| GET /api/v1/products/{id}/uoms; POST /api/v1/products/{id}/uoms; PATCH /api/v1/products/{id}/uoms/{uomId} | Read, create, update permitted nonhistorical attributes, or deactivate using is_active=false; no full replacement or hard delete |
-| GET/PUT /api/v1/branches/{branchId}/products/{productId}/reorder-rule | Optional branch replenishment threshold |
-| GET /api/v1/inventory/locations; POST /api/v1/inventory/locations; PATCH /api/v1/inventory/locations/{id} | Branch-scoped location management; default SELLABLE/QUARANTINE/SCRAP rows are created with each branch |
-| GET /api/v1/inventory/batches | Read batches; batch rows are created only by opening-balance/receipt ledger workflows |
-| GET /api/v1/inventory/balances | Branch/product/location/lot-filtered balance |
-| GET /api/v1/inventory/transactions | Paginated ledger history |
-| POST /api/v1/inventory/adjustments | Opening balance or authorized stock correction |
-| GET /api/v1/canonical/products; GET /api/v1/canonical/inventory | Canonical read collections |
-| POST /api/v1/canonical/configuration/products; PUT /api/v1/canonical/configuration/reorder-rules | Approved, allow-listed Brain configuration commands |
+| Method and route                                                                                                                               | Purpose                                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| POST /api/v1/auth/login (organization_code, username, password); POST /api/v1/auth/refresh; POST /api/v1/auth/logout; GET /api/v1/auth/me      | Authentication, token rotation/revocation, and current trusted scope                                                             |
+| POST /api/v1/organizations                                                                                                                     | PlatformProvisioner-only; atomically create Organization + first Branch + Employee + Admin                                       |
+| GET/POST /api/v1/branches; GET/PATCH /api/v1/branches/{id}; POST /api/v1/branches/{branchId}/enrollment-tokens; POST /api/v1/branch-enrollment | Branch management and secure branch runtime enrollment                                                                           |
+| GET/POST /api/v1/users; GET/PATCH /api/v1/users/{id}; POST /api/v1/users/{id}/password-reset; POST /api/v1/users/{id}/revoke-sessions          | Admin-only account, role/access, password and session management                                                                 |
+| GET/POST /api/v1/employees; GET/PATCH /api/v1/employees/{id}                                                                                   | Employee management                                                                                                              |
+| GET/POST /api/v1/product-categories; GET/PATCH /api/v1/product-categories/{id}                                                                 | Category management                                                                                                              |
+| GET/POST /api/v1/products; GET/PATCH /api/v1/products/{id}                                                                                     | Product management                                                                                                               |
+| GET /api/v1/products/{id}/uoms; POST /api/v1/products/{id}/uoms; PATCH /api/v1/products/{id}/uoms/{uomId}                                      | Read, create, update permitted nonhistorical attributes, or deactivate using is_active=false; no full replacement or hard delete |
+| GET/PUT /api/v1/branches/{branchId}/products/{productId}/reorder-rule                                                                          | Optional branch replenishment threshold                                                                                          |
+| GET /api/v1/inventory/locations; POST /api/v1/inventory/locations; PATCH /api/v1/inventory/locations/{id}                                      | Branch-scoped location management; default SELLABLE/QUARANTINE/SCRAP rows are created with each branch                           |
+| GET /api/v1/inventory/batches                                                                                                                  | Read batches; batch rows are created only by opening-balance/receipt ledger workflows                                            |
+| GET /api/v1/inventory/balances                                                                                                                 | Branch/product/location/lot-filtered balance                                                                                     |
+| GET /api/v1/inventory/transactions                                                                                                             | Paginated ledger history                                                                                                         |
+| POST /api/v1/inventory/adjustments                                                                                                             | Opening balance or authorized stock correction                                                                                   |
+| GET /api/v1/canonical/products; GET /api/v1/canonical/inventory                                                                                | Canonical read collections                                                                                                       |
+| POST /api/v1/canonical/configuration/products; PUT /api/v1/canonical/configuration/reorder-rules                                               | Approved, allow-listed Brain configuration commands                                                                              |
 
 <a id="59-stage-1-domain-functional-breakdown"></a>
+
 ### 5.9 Stage 1 Domain Functional Breakdown
 
-| Functional Area | Backend Responsibility | Acceptance Criteria |
-|---|---|---|
-| Organization, Branch & Identity Foundation | Organization, branch, employee, account, tenant scoping | All reads/writes use authenticated organization context |
-| Product Catalog & Unit Conversion | Product, category, UOM and optional reorder rule | Organization-scoped uniqueness and conversion rules |
-| Inventory Ledger & Stock Balances | Location, batch, balance, inventory ledger and costing | Atomic/idempotent movements; no negative sellable balance |
-| Security, Database Integration & Outbox | Auth/RBAC, shared DbContext/migration, audit/outbox, Canonical adapter | One migration chain; scoped FKs and backend contract fixtures |
+| Functional Area                            | Backend Responsibility                                                 | Acceptance Criteria                                           |
+| ------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Organization, Branch & Identity Foundation | Organization, branch, employee, account, tenant scoping                | All reads/writes use authenticated organization context       |
+| Product Catalog & Unit Conversion          | Product, category, UOM and optional reorder rule                       | Organization-scoped uniqueness and conversion rules           |
+| Inventory Ledger & Stock Balances          | Location, batch, balance, inventory ledger and costing                 | Atomic/idempotent movements; no negative sellable balance     |
+| Security, Database Integration & Outbox    | Auth/RBAC, shared DbContext/migration, audit/outbox, Canonical adapter | One migration chain; scoped FKs and backend contract fixtures |
 
 ---
+
 <a id="6-stage-2-specification-cashier-pos-sales-invoicing-payments-returns"></a>
+
 ## 6. Stage 2 Specification — Cashier POS Sales, Invoicing, Payments & Returns
 
 <a id="61-stage-purpose-cashier-only-scope"></a>
+
 ### 6.1 Stage Purpose & Cashier-Only Scope
 
 Add cashier-only orders, invoices, cash payments, returns/refunds, and branch-local/cloud synchronization. Each branch has one POS device with a local ERP database and local API. The MVP has no CUSTOMER, e-commerce, delivery, reservation, or POS_TERMINAL table. A cashier draft order does not reserve stock.
 
 <a id="62-database-schema-erd"></a>
+
 ### 6.2 Database Schema & ERD
 
 ```mermaid
@@ -1152,29 +1206,31 @@ erDiagram
 ```
 
 <a id="63-persisted-fields-constraints-navigation-properties"></a>
+
 ### 6.3 Persisted Fields, Constraints & Navigation Properties
 
 The following are logical schema requirements; physical enforcement is validated against migrations and EF Core configuration during implementation.
 
 All rows contain organization_id. Each FK is organization-aware; branch-scoped records also include branch_id. Currency-denominated line/header totals use numeric(18,2), entered unit prices and unit costs use numeric(18,4), tax rates use numeric(9,4), quantities use numeric(18,4), conversion snapshots use numeric(18,6), and timestamps are UTC timestamptz.
 
-| Table | Main fields and rules |
-|---|---|
-| sales.SALES_ORDER | organization_id, sales_order_id, branch_id, created_by_employee_id, order_no, channel=POS, order_status=DRAFT/COMPLETED/CANCELLED, currency_code, idempotency_key, created_at/completed_at. Unique organization_id+branch_id+order_no and organization_id+branch_id+idempotency_key. |
-| sales.SALES_ORDER_LINE | organization_id, order_line_id, sales_order_id, product_id, product_uom_id, entered_qty numeric(18,4), conversion_snapshot numeric(18,6), quantity_base numeric(18,4), unit_price_snapshot numeric(18,4), discount_amount numeric(18,2), tax_rate_snapshot numeric(9,4), tax_amount_snapshot numeric(18,2), line_total numeric(18,2), timestamps. Server copies current PRODUCT_UOM price and PRODUCT tax; tax_rate_snapshot is a fractional rate. Unique `(organization_id,order_line_id,product_id)` supports the inventory ledger source-line FK; its product UOM is independently validated against PRODUCT_UOM. Edits allowed only while the order is DRAFT. |
-| sales.SALES_INVOICE | organization_id, invoice_id, branch_id, sales_order_id, invoice_no, status, currency_code, subtotal, discount_total, tax_total, grand_total, paid_amount, refunded_amount, payment_status, issued_at, timestamps. One invoice per completed order; unique organization_id+branch_id+invoice_no, organization_id+sales_order_id, and organization_id+branch_id+invoice_id. No delivery amounts. |
-| sales.SALES_INVOICE_LINE | organization_id, invoice_line_id, invoice_id, source_order_line_id, product_id, product_uom_id, entered_qty numeric(18,4), conversion_snapshot numeric(18,6), quantity_base numeric(18,4), unit_price_snapshot numeric(18,4), discount_amount numeric(18,2), tax_rate_snapshot numeric(9,4) (snapshot of PRODUCT.tax_rate), tax_amount numeric(18,2), net_amount numeric(18,2), line_total numeric(18,2) = net_amount + tax_amount, unit_cost_snapshot numeric(18,4). Posted snapshots are immutable; unique `(organization_id,invoice_id,invoice_line_id,product_id)` supports matching return-line FKs. |
-| sales.SALES_PAYMENT | organization_id, payment_id, branch_id, invoice_id, received_by_employee_id, amount_due numeric(18,2), cash_tendered_amount numeric(18,2), change_amount numeric(18,2), method=CASH for MVP, idempotency_key, paid_at, note nullable. branch_id is copied from the invoice by the server; the employee FK is organization-scoped, and Application authorization verifies that the actor may work at the invoice branch. `amount_due > 0`; unique organization_id+branch_id+idempotency_key. |
-| sales.SALES_RETURN | organization_id, return_id, invoice_id, branch_id, received_by_employee_id, approved_by_employee_id nullable, return_no, status, reason_code, refund_amount, refund_status, idempotency_key, received_at. Unique organization_id+branch_id+return_no and organization_id+branch_id+idempotency_key; unique `(organization_id,return_id,branch_id,invoice_id)`; branch_id equals invoice branch. Employee FKs are organization-scoped; Application authorization checks access to the invoice branch, including the distinct approver policy. |
-| sales.SALES_RETURN_LINE | organization_id, return_line_id, return_id, invoice_id, branch_id, invoice_line_id, product_id, batch_id uuid NOT NULL (NON-LOT sentinel where applicable), destination_location_id, quantity_base, refund_amount, disposition. Parent invoice/branch/product are copied by the server; composite FKs prevent cross-invoice, cross-product, cross-branch, batch, and location mismatches. Unique `(organization_id,return_line_id,branch_id,product_id,batch_id,destination_location_id)` supports an exact ledger-line FK. Cumulative returned quantity cannot exceed sold allocation. |
-| sales.SALES_REFUND | organization_id, refund_id, branch_id, sales_return_id, invoice_id, processed_by_employee_id, amount, method=CASH for MVP, idempotency_key, refunded_at. Branch and invoice are copied from the return by the server; composite FKs align refund, return, invoice, and branch. The employee FK is organization-scoped; Application authorization verifies the actor may process the refund at that branch. Refund amount cannot exceed the amount paid less prior refunds. |
-| inventory.INVENTORY_TXN | Existing Stage 1 fields plus nullable sales_order_id and sales_return_id. A SALE_ISSUE links to one completed order; a SALES_RETURN_IN links to one posted return; a SCRAP_OUT links to its posted return. Unique organization_id+inventory_txn_id+branch_id supports the child branch FK; partial unique organization_id+sales_order_id for SALE_ISSUE and organization_id+sales_return_id separately for SALES_RETURN_IN and SCRAP_OUT. |
-| inventory.INVENTORY_TXN_LINE | Existing Stage 1 fields plus branch_id and nullable sales_order_line_id and sales_return_line_id; Stage 3 adds nullable purchase_order_line_id and vendor_return_line_id. Composite FK to transaction header proves branch identity; same-branch location FK applies. Source-line composite FKs match the source line identifier and product; a separate composite FK proves the ledger line’s own `product_uom_id` belongs to that product and is its base UOM. Sale lines have negative quantity_delta_base; returned stock has positive quantity_delta_base. Batch/location allocation is represented by one or more ledger lines. |
-| integration.SYNC_OUTBOX | Branch-local durable operation queue: operation_id UUID PK, organization_id, branch_id, operation_type, aggregate_id, branch_sequence, payload_version, payload_hash, payload, created_at, synced_at, retry_count, last_error. Written in the same local transaction as the business operation. |
-| integration.SYNC_INBOX | Cloud deduplication record: operation_id UUID PK, organization_id, branch_id, branch_sequence, payload_version, payload_hash, payload jsonb NOT NULL, received_at, processing_status, result_code (NULL only while RECEIVED; immutable terminal first result). The cloud stores the operation_id, outcome, and applied business rows in one transaction. |
-| integration.SYNC_BRANCH_CURSOR | Organization/branch synchronization state: composite PK (organization_id, branch_id), last_issued_sequence, last_applied_sequence, last_applied_cloud_cursor varchar(500). Updated transactionally with local outbox writes, cloud inbox application, and branch change-page application. |
+| Table                          | Main fields and rules                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sales.SALES_ORDER              | organization_id, sales_order_id, branch_id, created_by_employee_id, order_no, channel=POS, order_status=DRAFT/COMPLETED/CANCELLED, currency_code, idempotency_key, created_at/completed_at. Unique organization_id+branch_id+order_no and organization_id+branch_id+idempotency_key.                                                                                                                                                                                                                                                                                                                                                                              |
+| sales.SALES_ORDER_LINE         | organization_id, order_line_id, sales_order_id, product_id, product_uom_id, entered_qty numeric(18,4), conversion_snapshot numeric(18,6), quantity_base numeric(18,4), unit_price_snapshot numeric(18,4), discount_amount numeric(18,2), tax_rate_snapshot numeric(9,4), tax_amount_snapshot numeric(18,2), line_total numeric(18,2), timestamps. Server copies current PRODUCT_UOM price and PRODUCT tax; tax_rate_snapshot is a fractional rate. Unique `(organization_id,order_line_id,product_id)` supports the inventory ledger source-line FK; its product UOM is independently validated against PRODUCT_UOM. Edits allowed only while the order is DRAFT. |
+| sales.SALES_INVOICE            | organization_id, invoice_id, branch_id, sales_order_id, invoice_no, status, currency_code, subtotal, discount_total, tax_total, grand_total, paid_amount, refunded_amount, payment_status, issued_at, timestamps. One invoice per completed order; unique organization_id+branch_id+invoice_no, organization_id+sales_order_id, and organization_id+branch_id+invoice_id. No delivery amounts.                                                                                                                                                                                                                                                                    |
+| sales.SALES_INVOICE_LINE       | organization_id, invoice_line_id, invoice_id, source_order_line_id, product_id, product_uom_id, entered_qty numeric(18,4), conversion_snapshot numeric(18,6), quantity_base numeric(18,4), unit_price_snapshot numeric(18,4), discount_amount numeric(18,2), tax_rate_snapshot numeric(9,4) (snapshot of PRODUCT.tax_rate), tax_amount numeric(18,2), net_amount numeric(18,2), line_total numeric(18,2) = net_amount + tax_amount, unit_cost_snapshot numeric(18,4). Posted snapshots are immutable; unique `(organization_id,invoice_id,invoice_line_id,product_id)` supports matching return-line FKs.                                                         |
+| sales.SALES_PAYMENT            | organization_id, payment_id, branch_id, invoice_id, received_by_employee_id, amount_due numeric(18,2), cash_tendered_amount numeric(18,2), change_amount numeric(18,2), method=CASH for MVP, idempotency_key, paid_at, note nullable. branch_id is copied from the invoice by the server; the employee FK is organization-scoped, and Application authorization verifies that the actor may work at the invoice branch. `amount_due > 0`; unique organization_id+branch_id+idempotency_key.                                                                                                                                                                       |
+| sales.SALES_RETURN             | organization_id, return_id, invoice_id, branch_id, received_by_employee_id, approved_by_employee_id nullable, return_no, status, reason_code, refund_amount, refund_status, idempotency_key, received_at. Unique organization_id+branch_id+return_no and organization_id+branch_id+idempotency_key; unique `(organization_id,return_id,branch_id,invoice_id)`; branch_id equals invoice branch. Employee FKs are organization-scoped; Application authorization checks access to the invoice branch, including the distinct approver policy.                                                                                                                      |
+| sales.SALES_RETURN_LINE        | organization_id, return_line_id, return_id, invoice_id, branch_id, invoice_line_id, product_id, batch_id uuid NOT NULL (NON-LOT sentinel where applicable), destination_location_id, quantity_base, refund_amount, disposition. Parent invoice/branch/product are copied by the server; composite FKs prevent cross-invoice, cross-product, cross-branch, batch, and location mismatches. Unique `(organization_id,return_line_id,branch_id,product_id,batch_id,destination_location_id)` supports an exact ledger-line FK. Cumulative returned quantity cannot exceed sold allocation.                                                                           |
+| sales.SALES_REFUND             | organization_id, refund_id, branch_id, sales_return_id, invoice_id, processed_by_employee_id, amount, method=CASH for MVP, idempotency_key, refunded_at. Branch and invoice are copied from the return by the server; composite FKs align refund, return, invoice, and branch. The employee FK is organization-scoped; Application authorization verifies the actor may process the refund at that branch. Refund amount cannot exceed the amount paid less prior refunds.                                                                                                                                                                                        |
+| inventory.INVENTORY_TXN        | Existing Stage 1 fields plus nullable sales_order_id and sales_return_id. A SALE_ISSUE links to one completed order; a SALES_RETURN_IN links to one posted return; a SCRAP_OUT links to its posted return. Unique organization_id+inventory_txn_id+branch_id supports the child branch FK; partial unique organization_id+sales_order_id for SALE_ISSUE and organization_id+sales_return_id separately for SALES_RETURN_IN and SCRAP_OUT.                                                                                                                                                                                                                         |
+| inventory.INVENTORY_TXN_LINE   | Existing Stage 1 fields plus branch_id and nullable sales_order_line_id and sales_return_line_id; Stage 3 adds nullable purchase_order_line_id and vendor_return_line_id. Composite FK to transaction header proves branch identity; same-branch location FK applies. Source-line composite FKs match the source line identifier and product; a separate composite FK proves the ledger line’s own `product_uom_id` belongs to that product and is its base UOM. Sale lines have negative quantity_delta_base; returned stock has positive quantity_delta_base. Batch/location allocation is represented by one or more ledger lines.                             |
+| integration.SYNC_OUTBOX        | Branch-local durable operation queue: operation_id UUID PK, organization_id, branch_id, operation_type, aggregate_id, branch_sequence, payload_version, payload_hash, payload, created_at, synced_at, retry_count, last_error. Written in the same local transaction as the business operation.                                                                                                                                                                                                                                                                                                                                                                   |
+| integration.SYNC_INBOX         | Cloud deduplication record: operation_id UUID PK, organization_id, branch_id, branch_sequence, payload_version, payload_hash, payload jsonb NOT NULL, received_at, processing_status, result_code (NULL only while RECEIVED; immutable terminal first result). The cloud stores the operation_id, outcome, and applied business rows in one transaction.                                                                                                                                                                                                                                                                                                          |
+| integration.SYNC_BRANCH_CURSOR | Organization/branch synchronization state: composite PK (organization_id, branch_id), last_issued_sequence, last_applied_sequence, last_applied_cloud_cursor varchar(500). Updated transactionally with local outbox writes, cloud inbox application, and branch change-page application.                                                                                                                                                                                                                                                                                                                                                                         |
 
 <a id="64-sale-stock-cash-payment-and-return-business-rules"></a>
+
 ### 6.4 Sale, Stock, Cash Payment, and Return Business Rules
 
 - Cashier order is the draft/cart. Creating a sales order or modifying lines does not reserve or decrement stock.
@@ -1191,23 +1247,25 @@ All rows contain organization_id. Each FK is organization-aware; branch-scoped r
 - Cancel a draft order directly; a cancelled draft produces no invoice, payment, or stock movement.
 
 <a id="65-stage-2-api-requestresponse-dto-contracts"></a>
+
 ### 6.5 Stage 2 API Request/Response DTO Contracts
 
-| DTO | Direction | Main fields |
-|---|---|---|
-| CreateSalesOrderRequest | POS→branch-local API | branch, idempotency key, cashier lines with product/UOM/entered quantity; no client-authoritative price, discount, tax, or total; tenant scope comes from authenticated Organization context |
-| SalesOrderLineRequest | FE→local API | product, product UOM, entered quantity |
-| SalesOrderDto | API→FE | order id/number/status, branch, cashier, lines, server-calculated estimates and time |
-| CompleteSalesOrderRequest | POS→branch-local API | idempotency key and cash payment amount/method; server recomputes totals from order snapshots |
-| CompleteSalesOrderResultDto | API→FE | completed order, invoice, payment and inventory transaction references |
-| SalesInvoiceDto | API→FE | invoice lines and price/tax/cost snapshots, subtotal/discount/tax/grand total, paid/refunded amounts and payment status |
-| SalesReturnRequest | POS→branch-local API | original invoice, reason, invoice-line IDs, quantities, disposition and refund request, idempotency key; batch/location are derived from original posted sale allocation, not client-selected |
-| SalesReturnDto | API→FE | return lines, receiver, stock transaction, refund state and timestamp |
-| SyncOperationRequest/Result | Local API↔Cloud API | operation_id and organization/branch metadata validated against enrolled branch credentials, typed operation payload → accepted/already-applied/conflict result |
-| InventorySummaryDto | API→FE | on-hand and available quantities; no reserved quantity |
-| PagedResult<T>/ApiErrorDto | API→FE | paginated results and typed error envelope |
+| DTO                         | Direction            | Main fields                                                                                                                                                                                   |
+| --------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CreateSalesOrderRequest     | POS→branch-local API | branch, idempotency key, cashier lines with product/UOM/entered quantity; no client-authoritative price, discount, tax, or total; tenant scope comes from authenticated Organization context  |
+| SalesOrderLineRequest       | FE→local API         | product, product UOM, entered quantity                                                                                                                                                        |
+| SalesOrderDto               | API→FE               | order id/number/status, branch, cashier, lines, server-calculated estimates and time                                                                                                          |
+| CompleteSalesOrderRequest   | POS→branch-local API | idempotency key and cash payment amount/method; server recomputes totals from order snapshots                                                                                                 |
+| CompleteSalesOrderResultDto | API→FE               | completed order, invoice, payment and inventory transaction references                                                                                                                        |
+| SalesInvoiceDto             | API→FE               | invoice lines and price/tax/cost snapshots, subtotal/discount/tax/grand total, paid/refunded amounts and payment status                                                                       |
+| SalesReturnRequest          | POS→branch-local API | original invoice, reason, invoice-line IDs, quantities, disposition and refund request, idempotency key; batch/location are derived from original posted sale allocation, not client-selected |
+| SalesReturnDto              | API→FE               | return lines, receiver, stock transaction, refund state and timestamp                                                                                                                         |
+| SyncOperationRequest/Result | Local API↔Cloud API  | operation_id and organization/branch metadata validated against enrolled branch credentials, typed operation payload → accepted/already-applied/conflict result                               |
+| InventorySummaryDto         | API→FE               | on-hand and available quantities; no reserved quantity                                                                                                                                        |
+| PagedResult<T>/ApiErrorDto  | API→FE               | paginated results and typed error envelope                                                                                                                                                    |
 
 <a id="66-stage-2-canonical-integration-contract"></a>
+
 ### 6.6 Stage 2 Canonical Integration Contract
 
 - **CanonicalSale:** posted cashier-sale history: organization_id, invoice_id, order_id, branch_id, issued_at, currency, persisted totals, and base-UOM lines with price/discount/tax snapshots.
@@ -1217,29 +1275,31 @@ All rows contain organization_id. Each FK is organization-aware; branch-scoped r
 - **No Stage 2 Canonical write command creates a cashier order.** AI may read sales and returns; POS orders require an authenticated cashier.
 
 <a id="67-stage-2-api-endpoints-controller-conventions"></a>
+
 ### 6.7 Stage 2 API Endpoints & Controller Conventions
 
-| Method and route | Purpose |
-|---|---|
-| POST /api/v1/sales-orders | Create cashier DRAFT with lines |
-| GET /api/v1/sales-orders | List by branch, status and date |
-| GET /api/v1/sales-orders/{id} | Order and line details |
-| PUT /api/v1/sales-orders/{id}/lines | Replace draft line set; draft only |
-| POST /api/v1/sales-orders/{id}/complete | Atomic invoice + cash payment + stock issue + outbox |
-| POST /api/v1/sales-orders/{id}/cancel | Cancel a draft; no stock reversal needed |
-| GET /api/v1/sales-invoices | Search invoices by branch/date/number |
-| GET /api/v1/sales-invoices/{id} | Invoice details and payment/refund summary |
-| POST /api/v1/sales-returns | Validate and post return, stock receipt, and any cash refund |
-| GET /api/v1/sales-returns | Search returns by branch/date/invoice |
-| GET /api/v1/sales-returns/{id} | Return lines, stock movement and refund details |
-| POST /api/v1/sync/operations | Internal local-to-cloud operation batch; idempotent per operation_id |
-| GET /api/v1/sync/bootstrap | Initial branch data snapshot and cursor |
-| GET /api/v1/sync/changes | Organization/branch-scoped changes after cursor |
-| GET /api/v1/canonical/sales | Canonical read: posted sales by range/branch/cursor |
-| GET /api/v1/canonical/orders | Canonical read: non-PII POS order state if needed |
-| GET /api/v1/canonical/returns | Canonical read: posted sales returns/refunds |
+| Method and route                        | Purpose                                                              |
+| --------------------------------------- | -------------------------------------------------------------------- |
+| POST /api/v1/sales-orders               | Create cashier DRAFT with lines                                      |
+| GET /api/v1/sales-orders                | List by branch, status and date                                      |
+| GET /api/v1/sales-orders/{id}           | Order and line details                                               |
+| PUT /api/v1/sales-orders/{id}/lines     | Replace draft line set; draft only                                   |
+| POST /api/v1/sales-orders/{id}/complete | Atomic invoice + cash payment + stock issue + outbox                 |
+| POST /api/v1/sales-orders/{id}/cancel   | Cancel a draft; no stock reversal needed                             |
+| GET /api/v1/sales-invoices              | Search invoices by branch/date/number                                |
+| GET /api/v1/sales-invoices/{id}         | Invoice details and payment/refund summary                           |
+| POST /api/v1/sales-returns              | Validate and post return, stock receipt, and any cash refund         |
+| GET /api/v1/sales-returns               | Search returns by branch/date/invoice                                |
+| GET /api/v1/sales-returns/{id}          | Return lines, stock movement and refund details                      |
+| POST /api/v1/sync/operations            | Internal local-to-cloud operation batch; idempotent per operation_id |
+| GET /api/v1/sync/bootstrap              | Initial branch data snapshot and cursor                              |
+| GET /api/v1/sync/changes                | Organization/branch-scoped changes after cursor                      |
+| GET /api/v1/canonical/sales             | Canonical read: posted sales by range/branch/cursor                  |
+| GET /api/v1/canonical/orders            | Canonical read: non-PII POS order state if needed                    |
+| GET /api/v1/canonical/returns           | Canonical read: posted sales returns/refunds                         |
 
 Use business-operation endpoints, not a controller for every database table. Suggested controllers:
+
 - `SalesOrdersController`
 - `SalesInvoicesController`
 - `SalesReturnsController`
@@ -1250,28 +1310,33 @@ Payment creation during normal POS checkout is part of `complete`; a separate pa
 Every mutating request uses an idempotency key. Invalid order transitions return 409; insufficient stock returns a typed 409 with affected lines; a return outside 14 days or exceeding the remaining returnable quantity returns a typed policy error. All reads/writes are organization- and branch-scoped.
 
 <a id="68-stage-2-domain-functional-breakdown"></a>
+
 ### 6.8 Stage 2 Domain Functional Breakdown
 
-| Functional Area | Backend Responsibility | Acceptance Criteria |
-|---|---|---|
-| Sales Order & Invoice Lifecycle | SalesOrder/Line, invoice/line, totals, cashier lifecycle | Draft is non-posting; complete creates one invoice and stable snapshots |
-| FEFO Allocation & Sync Worker | Inventory locking/FEFO, sale issue, return stock-in, local/cloud sync worker | No oversell; retry-safe sync; ledger and balance update atomically |
-| Returns, Refunds & Canonical Mapping | SalesReturn/Line, SalesRefund, 14-day policy and canonical read mapping | Partial returns stay within original quantities/amounts; full history retained |
-| Cash Payment, Auth & DbContext Integration | Payment records, organization/branch authorization, shared DbContext/migration, audit and API integration | One context; scoped FKs; complete/return idempotency; contract fixtures pass |
+| Functional Area                            | Backend Responsibility                                                                                    | Acceptance Criteria                                                            |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Sales Order & Invoice Lifecycle            | SalesOrder/Line, invoice/line, totals, cashier lifecycle                                                  | Draft is non-posting; complete creates one invoice and stable snapshots        |
+| FEFO Allocation & Sync Worker              | Inventory locking/FEFO, sale issue, return stock-in, local/cloud sync worker                              | No oversell; retry-safe sync; ledger and balance update atomically             |
+| Returns, Refunds & Canonical Mapping       | SalesReturn/Line, SalesRefund, 14-day policy and canonical read mapping                                   | Partial returns stay within original quantities/amounts; full history retained |
+| Cash Payment, Auth & DbContext Integration | Payment records, organization/branch authorization, shared DbContext/migration, audit and API integration | One context; scoped FKs; complete/return idempotency; contract fixtures pass   |
 
 ---
+
 <a id="7-stage-3-specification-purchasing-cycle-one-step-po-receiving-supplier-payments"></a>
+
 ## 7. Stage 3 Specification — Purchasing Cycle, One-Step PO Receiving & Supplier Payments
 
 <a id="71-stage-purpose-purchasing-scope"></a>
+
 ### 7.1 Stage Purpose & Purchasing Scope
 
 Add supplier records, purchase order and lines, one-step receiving that directly posts accepted units to the existing inventory ledger, supplier payments, and vendor returns. No separate Goods Receipt module is needed. Repeated partial receipt commands are supported while an order remains open.
 
 <a id="72-database-schema-erd"></a>
+
 ### 7.2 Database Schema & ERD
 
-~~~mermaid
+```mermaid
 erDiagram
  ORGANIZATION ||--o{ SUPPLIER : scopes
  ORGANIZATION ||--o{ PURCHASE_ORDER : scopes
@@ -1383,48 +1448,54 @@ erDiagram
  numeric quantity_base
  numeric unit_cost_snapshot
  }
-~~~
+```
 
 <a id="73-exact-fields-constraints-navigation-properties"></a>
+
 ### 7.3 Exact Fields, Constraints & Navigation Properties
 
 The following are logical schema requirements; physical enforcement is validated against migrations and EF Core configuration during implementation.
 
-| Table | Fields and types | Keys/constraints | EF navigation properties |
-|---|---|---|---|
-| purchasing.SUPPLIER | organization_id uuid; supplier_id uuid; supplier_code varchar(30); legal_name varchar(180); tax_registration_number varchar(60) nullable; contact_email varchar(254) nullable; phone varchar(30) nullable; Address fields; default_lead_time_days int; is_active bool; timestamps | PK; unique organization_id+supplier_code; optional unique organization_id+tax number; lead time>=0 | PurchaseOrders, Payments, VendorReturns; Address owned |
-| purchasing.PURCHASE_ORDER | organization_id uuid; purchase_order_id uuid; supplier_id uuid; branch_id uuid; created_by_employee_id uuid; po_no varchar(40); status varchar(25); expected_on date nullable; currency_code char(3); subtotal/tax_total/additional_costs/total_amount/paid_amount numeric(18,2); payment_status varchar(25); created_by_type varchar(20); idempotency_key varchar(100); ordered_at timestamptz nullable; timestamps | PK; FKs Supplier/Branch and organization-scoped Employee; Application authorization verifies the actor may create or act on a PO for its branch; unique organization_id+PO number and organization_id+idempotency key; alternate key `(organization_id,purchase_order_id,supplier_id)`; paid between zero and due | Supplier, Branch, CreatedBy, Lines, Payments, ReceiptTxns |
-| purchasing.PURCHASE_ORDER_LINE | organization_id uuid; po_line_id uuid; purchase_order_id uuid; product_id uuid; product_uom_id uuid; entered_ordered_qty numeric(18,4); conversion_snapshot numeric(18,6); ordered_qty_base/received_qty_base/rejected_qty_base/cancelled_qty_base numeric(18,4); unit_cost_entered/unit_cost_base numeric(18,4); discount_amount/tax_amount/line_total/allocated_additional_cost numeric(18,2); tax_rate_snapshot numeric(9,4) (snapshot of PRODUCT.tax_rate); min_remaining_shelf_days int | PK; alternate key `(organization_id,po_line_id,product_id)`; FKs PO/Product/UOM; nonnegative counts and costs; received+cancelled<=ordered; conversion snapshot >0 | PO, Product, ProductUom, InventoryTxnLines, VendorReturnLines |
-| purchasing.SUPPLIER_PAYMENT | organization_id uuid; supplier_payment_id uuid; supplier_id uuid; purchase_order_id uuid; recorded_by_employee_id uuid; amount numeric(18,2); currency_code char(3); method varchar(20); payment_reference varchar(100) nullable; idempotency_key varchar(100); paid_at timestamptz; note varchar(250) nullable | PK; FKs Supplier/PO and organization-scoped Employee; composite FK `(organization_id,purchase_order_id,supplier_id)` to PO alternate key; unique organization_id+idempotency key; amount>0 | Supplier, PO, RecordedBy |
-| purchasing.VENDOR_RETURN | organization_id uuid; vendor_return_id uuid; supplier_id uuid; branch_id uuid; created_by_employee_id uuid; return_no varchar(40); status varchar(20); reason_code varchar(40); note varchar(500) nullable; idempotency_key varchar(100); created_at/posted_at timestamptz | PK; unique organization_id+vendor_return_id+branch_id, organization_id+branch_id+return_no, and organization_id+branch_id+idempotency_key; FKs Supplier/Branch and organization-scoped Employee; Application authorization verifies the actor may act for its branch; DRAFT/POSTED/CANCELLED | Supplier, Branch, CreatedBy, Lines, InventoryTxn |
-| purchasing.VENDOR_RETURN_LINE | organization_id uuid; vendor_return_line_id uuid; vendor_return_id uuid; branch_id uuid; purchase_order_line_id uuid; product_id uuid; batch_id uuid; location_id uuid; quantity_base numeric(18,4); unit_cost_snapshot numeric(18,4); reason_code varchar(40) | PK; alternate keys `(organization_id,vendor_return_line_id,product_id)` and `(organization_id,vendor_return_line_id,branch_id,product_id,batch_id,location_id)`; composite FK to Return header and same-branch Location; FKs PO line/Product/Batch; quantity>0 and within eligible received stock | Return, PO line, Product, Batch, Location, InventoryTxnLine |
+| Table                          | Fields and types                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Keys/constraints                                                                                                                                                                                                                                                                                                  | EF navigation properties                                      |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| purchasing.SUPPLIER            | organization_id uuid; supplier_id uuid; supplier_code varchar(30); legal_name varchar(180); tax_registration_number varchar(60) nullable; contact_email varchar(254) nullable; phone varchar(30) nullable; Address fields; default_lead_time_days int; is_active bool; timestamps                                                                                                                                                                                                            | PK; unique organization_id+supplier_code; optional unique organization_id+tax number; lead time>=0                                                                                                                                                                                                                | PurchaseOrders, Payments, VendorReturns; Address owned        |
+| purchasing.PURCHASE_ORDER      | organization_id uuid; purchase_order_id uuid; supplier_id uuid; branch_id uuid; created_by_employee_id uuid; po_no varchar(40); status varchar(25); expected_on date nullable; currency_code char(3); subtotal/tax_total/additional_costs/total_amount/paid_amount numeric(18,2); payment_status varchar(25); created_by_type varchar(20); idempotency_key varchar(100); ordered_at timestamptz nullable; timestamps                                                                         | PK; FKs Supplier/Branch and organization-scoped Employee; Application authorization verifies the actor may create or act on a PO for its branch; unique organization_id+PO number and organization_id+idempotency key; alternate key `(organization_id,purchase_order_id,supplier_id)`; paid between zero and due | Supplier, Branch, CreatedBy, Lines, Payments, ReceiptTxns     |
+| purchasing.PURCHASE_ORDER_LINE | organization_id uuid; po_line_id uuid; purchase_order_id uuid; product_id uuid; product_uom_id uuid; entered_ordered_qty numeric(18,4); conversion_snapshot numeric(18,6); ordered_qty_base/received_qty_base/rejected_qty_base/cancelled_qty_base numeric(18,4); unit_cost_entered/unit_cost_base numeric(18,4); discount_amount/tax_amount/line_total/allocated_additional_cost numeric(18,2); tax_rate_snapshot numeric(9,4) (snapshot of PRODUCT.tax_rate); min_remaining_shelf_days int | PK; alternate key `(organization_id,po_line_id,product_id)`; FKs PO/Product/UOM; nonnegative counts and costs; received+cancelled<=ordered; conversion snapshot >0                                                                                                                                                | PO, Product, ProductUom, InventoryTxnLines, VendorReturnLines |
+| purchasing.SUPPLIER_PAYMENT    | organization_id uuid; supplier_payment_id uuid; supplier_id uuid; purchase_order_id uuid; recorded_by_employee_id uuid; amount numeric(18,2); currency_code char(3); method varchar(20); payment_reference varchar(100) nullable; idempotency_key varchar(100); paid_at timestamptz; note varchar(250) nullable                                                                                                                                                                              | PK; FKs Supplier/PO and organization-scoped Employee; composite FK `(organization_id,purchase_order_id,supplier_id)` to PO alternate key; unique organization_id+idempotency key; amount>0                                                                                                                        | Supplier, PO, RecordedBy                                      |
+| purchasing.VENDOR_RETURN       | organization_id uuid; vendor_return_id uuid; supplier_id uuid; branch_id uuid; created_by_employee_id uuid; return_no varchar(40); status varchar(20); reason_code varchar(40); note varchar(500) nullable; idempotency_key varchar(100); created_at/posted_at timestamptz                                                                                                                                                                                                                   | PK; unique organization_id+vendor_return_id+branch_id, organization_id+branch_id+return_no, and organization_id+branch_id+idempotency_key; FKs Supplier/Branch and organization-scoped Employee; Application authorization verifies the actor may act for its branch; DRAFT/POSTED/CANCELLED                      | Supplier, Branch, CreatedBy, Lines, InventoryTxn              |
+| purchasing.VENDOR_RETURN_LINE  | organization_id uuid; vendor_return_line_id uuid; vendor_return_id uuid; branch_id uuid; purchase_order_line_id uuid; product_id uuid; batch_id uuid; location_id uuid; quantity_base numeric(18,4); unit_cost_snapshot numeric(18,4); reason_code varchar(40)                                                                                                                                                                                                                               | PK; alternate keys `(organization_id,vendor_return_line_id,product_id)` and `(organization_id,vendor_return_line_id,branch_id,product_id,batch_id,location_id)`; composite FK to Return header and same-branch Location; FKs PO line/Product/Batch; quantity>0 and within eligible received stock                 | Return, PO line, Product, Batch, Location, InventoryTxnLine   |
 
 Stage 3 adds organization-aware typed FKs on purchasing and existing ledger tables. InventoryTxn branch and source references use exact composite tuples, so a branch transaction cannot refer to a document from another branch:
+
 - `InventoryTxn.purchase_order_id` and `vendor_return_id`;
 - `InventoryTxnLine.purchase_order_line_id` and `vendor_return_line_id`.
-Stage 2 sales links remain. Every purchasing row carries organization_id, and composite FKs prevent supplier, branch, employee, product, PO, batch, or ledger references from crossing organizations.
+  Stage 2 sales links remain. Every purchasing row carries organization_id, and composite FKs prevent supplier, branch, employee, product, PO, batch, or ledger references from crossing organizations.
 
 <a id="74-purchase-value-rules-landed-cost-allocation"></a>
+
 ### 7.4 Purchase Value Rules & Landed Cost Allocation
 
 PO total is calculated by the server from line snapshots and persisted in the header for stable list reads. `line_total` is net of line discount and excludes tax; header `subtotal` sums those line values, `tax_total` sums line tax snapshots, and `total_amount = subtotal + tax_total + additional_costs`. Additional costs are not taxed separately in this MVP. Lines remain the audit detail. At PO creation, allocate `additional_costs` once to lines in proportion to ordered line net value and snapshot the allocations. Round allocations to currency cents; assign any residual cent to the final line in ascending `po_line_id` order so allocated amounts sum exactly to the header. Release each line allocation to accepted units pro rata as partial receipts post; rejected or cancelled units receive none. Include released allocation in incoming unit cost before updating the location-and-batch weighted-average cost at the `(organization_id, location_id, batch_id)` stock-balance level. If a line is finally cancelled/rejected, any unreleased allocated cost remains on the PO as a non-inventory purchase cost and does not enter stock valuation. For each line, release currency cents pro rata, assigning the residual to its final accepted receipt. A header cost without line allocation cannot produce reliable product average cost.
 
 <a id="75-n-tier-implementation-guide-domain-infrastructure-application-api"></a>
+
 ### 7.5 N-Tier Implementation Guide (Domain, Infrastructure, Application, API)
 
 #### Domain Layer
+
 - **Entities:** Supplier, PurchaseOrder, PurchaseOrderLine, SupplierPayment, VendorReturn, VendorReturnLine.
 - **Methods:**
- - `PO.CreateDraft`, `PO.Approve`, `PO.MarkOrdered`, `PO.Receive`, `PO.CancelRemaining`
- - `PO.RecordPayment`, `PO.RecalculatePaymentStatus`
- - `VendorReturn.ValidateEligibleQty`, `VendorReturn.Post`
+- `PO.CreateDraft`, `PO.Approve`, `PO.MarkOrdered`, `PO.Receive`, `PO.CancelRemaining`
+- `PO.RecordPayment`, `PO.RecalculatePaymentStatus`
+- `VendorReturn.ValidateEligibleQty`, `VendorReturn.Post`
 - **Domain Exceptions:**
- - `SupplierInactiveException`, `DuplicateSupplierCodeException`, `InvalidPoTransitionException`
- - `OverReceiptException`, `ExpiredGoodsException`, `InsufficientRemainingShelfLifeException`
- - `BatchProductMismatchException`, `PaymentExceedsOutstandingException`, `SupplierMismatchException`
- - `VendorReturnExceedsReceivedQuantityException`, `PurchaseOrderClosedException`
+- `SupplierInactiveException`, `DuplicateSupplierCodeException`, `InvalidPoTransitionException`
+- `OverReceiptException`, `ExpiredGoodsException`, `InsufficientRemainingShelfLifeException`
+- `BatchProductMismatchException`, `PaymentExceedsOutstandingException`, `SupplierMismatchException`
+- `VendorReturnExceedsReceivedQuantityException`, `PurchaseOrderClosedException`
 
 #### Infrastructure Layer
+
 - Map purchasing schema and supplier Address Owned type.
 - Configure FKs to Product, ProductUom, Branch, Employee, InventoryBatch, InventoryLocation and ledger tables with `DeleteBehavior.Restrict`.
 - Index supplier/status/date, PO lines, payment time, return branch/time.
@@ -1433,17 +1504,21 @@ PO total is calculated by the server from line snapshots and persisted in the he
 - One-step receive is a single Application command; no separate GoodsReceipt header/table. Each partial receive command produces its own InventoryTxn linked to the same PO/lines.
 
 #### Application Layer
+
 - **Interfaces:** `ISupplierService`, `IPurchaseOrderService`, `IPurchaseReceivingService`, `ISupplierPaymentService`, `IVendorReturnService`, `IPurchaseOrderRepository`, `ISupplierRepository`.
 - **Receiving Service:** validates lots and all lines, posts ledger/balance/cost, updates PO, audit/outbox in one database transaction.
 
 #### API Layer
+
 - **Controllers:** `SuppliersController`, `PurchaseOrdersController`, `SupplierPaymentsController`, `VendorReturnsController`.
 - Receive and post-return are explicit commands, not arbitrary status PATCH. Known policy failures return typed errors, never raw exceptions.
 
 <a id="76-business-logic-edge-cases"></a>
+
 ### 7.6 Business Logic & Edge Cases
 
 #### Supplier, PO, and One-Step Receiving
+
 1. Supplier has legal name, code, tax registration number, contact email, phone, Address and lead time. Tax ID/contact email can be nullable where business rules allow. Supplier deactivation preserves historical POs.
 2. Create DRAFT PO with product, UOM, quantity, expected date, line price/tax and additional costs. Server normalizes to base UOM and stores price/conversion snapshots.
 3. State machine: `DRAFT → APPROVED → ORDERED → PARTIALLY_RECEIVED → RECEIVED/CLOSED`. DRAFT or APPROVED, not-yet-ordered POs may be cancelled with a reason only when no supplier payment has been posted. Once ordered, cancellation applies only to the remaining quantity and requires a reason. Ordered documents are not silently rewritten; use an amendment/cancel-replace workflow.
@@ -1453,128 +1528,139 @@ PO total is calculated by the server from line snapshots and persisted in the he
 7. Receipt source links are real FKs to PO/line and ledger. Same idempotency key cannot post twice.
 
 #### Expiry and Costing
+
 - Always reject expired lots for sellable receipt.
 - For lot-tracked products, minimum remaining shelf life is captured on the PO line with `min_remaining_shelf_days` defaulting to 90 days. The PO line may specify a different value for that order; no product/supplier policy field is assumed. Require `expires_on >= received_on + configured days`. For products with `lot_tracking_required=false`, the effective minimum is 0 and the NON-LOT sentinel may have NULL `expires_on`; expiry comparison does not apply.
 - A shelf-life violation returns `EXPIRY_POLICY_VIOLATION`. A permitted exception requires role and reason; it is never an unhandled exception.
 - `manufactured_on` is optional unless product policy requires it; if present it cannot exceed expiry.
 - Accepted quantity $q$ at incoming cost $c$ updates the location-and-batch weighted-average cost at the specific organization/location/batch tuple:
- $$\text{New Cost} = \frac{(\text{Current On-Hand Qty}_{org,location,batch} \times \text{Current Avg Cost}_{org,location,batch}) + (q \times c)}{\text{Current On-Hand Qty}_{org,location,batch} + q}$$
+  $$\text{New Cost} = \frac{(\text{Current On-Hand Qty}_{org,location,batch} \times \text{Current Avg Cost}_{org,location,batch}) + (q \times c)}{\text{Current On-Hand Qty}_{org,location,batch} + q}$$
 - Incoming cost $c$ includes the PO-line share of additional costs released pro rata for the accepted quantity. The PO ordered-line-net allocation and partial-receipt release rule in §7.4 apply; prior receipt snapshots are immutable.
 - On partial/rejected shipment, remaining obligation equals `ordered - accepted - cancelled`. Rejected quantity stays visible and can be replaced or cancelled.
 
 #### Supplier Payments and Returns
+
 - Each cash payment inserts SupplierPayment and updates `PO.paid_amount`/`payment_status` in the same transaction. Partial payments are supported only for APPROVED, ORDERED, PARTIALLY_RECEIVED, RECEIVED, or CLOSED POs with a positive outstanding amount. Amount cannot exceed outstanding; DRAFT/CANCELLED POs reject payment.
 - Payment does not mark goods received. Receipt does not mark PO paid. Currency must match the PO.
 - Vendor return line refers to PO line, batch and location; quantity cannot exceed accepted received stock still available. Post produces a negative InventoryTxn and updates balance/cost; it never deletes original receipt.
 - Supplier credit/cash reimbursement is not inferred from the physical return. Record only actual cash facts supplied by the user workflow.
 
 <a id="77-stage-3-api-requestresponse-dto-contracts"></a>
+
 ### 7.7 Stage 3 API Request/Response DTO Contracts
 
-| DTO | Direction | Fields |
-|---|---|---|
-| CreateSupplierRequest/SupplierDto | Both | code, legal name, tax ID?, email?, phone?, address, lead time, active |
-| CreatePurchaseOrderRequest | FE→API | supplier, branch, currency, expected date?, lines[{product,UOM,entered qty,unit cost,discount,tax}], additional costs?, idempotency |
-| PurchaseOrderLineDto | API→FE | entered qty/UOM, normalized base qty, received/rejected/cancelled/remaining base qty, price/tax/line total |
-| PurchaseOrderDto | API→FE | number/status/supplier/branch/date/currency/subtotal/tax/freight/total/paid/outstanding/payment status/lines |
-| ApprovePurchaseOrderRequest | FE→API | idempotency key |
-| ReceivePurchaseOrderRequest | FE→API | key, location, received date, lines[{PO line, received/accepted/rejected quantity, UOM; for each receipt line, `received_qty_base = accepted_qty_base + rejected_qty_base`; the PO `received_qty_base` accumulator counts accepted quantity only, batch number, manufacture?, expiry?, override reason?}] |
-| PurchaseReceiptResultDto | API→FE | inventory txn ID, PO status, accepted/rejected/remaining quantities, batches, trace |
-| RecordSupplierPaymentRequest | FE→API | supplier, PO, amount, currency, CASH, reference?, key |
-| SupplierPaymentDto | API→FE | id, amount, time, actor, PO paid/outstanding/payment status |
-| CreateVendorReturnRequest | FE→API | supplier, branch, reason, lines[{PO line,batch,location,qty,reason}], key |
-| VendorReturnDto | API→FE | number/status/supplier/lines/actor/inventory txn/time |
-| PagedResult<T>/ApiErrorDto | API→FE | Shared envelope |
+| DTO                               | Direction | Fields                                                                                                                                                                                                                                                                                                    |
+| --------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CreateSupplierRequest/SupplierDto | Both      | code, legal name, tax ID?, email?, phone?, address, lead time, active                                                                                                                                                                                                                                     |
+| CreatePurchaseOrderRequest        | FE→API    | supplier, branch, currency, expected date?, lines[{product,UOM,entered qty,unit cost,discount,tax}], additional costs?, idempotency                                                                                                                                                                       |
+| PurchaseOrderLineDto              | API→FE    | entered qty/UOM, normalized base qty, received/rejected/cancelled/remaining base qty, price/tax/line total                                                                                                                                                                                                |
+| PurchaseOrderDto                  | API→FE    | number/status/supplier/branch/date/currency/subtotal/tax/freight/total/paid/outstanding/payment status/lines                                                                                                                                                                                              |
+| ApprovePurchaseOrderRequest       | FE→API    | idempotency key                                                                                                                                                                                                                                                                                           |
+| ReceivePurchaseOrderRequest       | FE→API    | key, location, received date, lines[{PO line, received/accepted/rejected quantity, UOM; for each receipt line, `received_qty_base = accepted_qty_base + rejected_qty_base`; the PO `received_qty_base` accumulator counts accepted quantity only, batch number, manufacture?, expiry?, override reason?}] |
+| PurchaseReceiptResultDto          | API→FE    | inventory txn ID, PO status, accepted/rejected/remaining quantities, batches, trace                                                                                                                                                                                                                       |
+| RecordSupplierPaymentRequest      | FE→API    | supplier, PO, amount, currency, CASH, reference?, key                                                                                                                                                                                                                                                     |
+| SupplierPaymentDto                | API→FE    | id, amount, time, actor, PO paid/outstanding/payment status                                                                                                                                                                                                                                               |
+| CreateVendorReturnRequest         | FE→API    | supplier, branch, reason, lines[{PO line,batch,location,qty,reason}], key                                                                                                                                                                                                                                 |
+| VendorReturnDto                   | API→FE    | number/status/supplier/lines/actor/inventory txn/time                                                                                                                                                                                                                                                     |
+| PagedResult<T>/ApiErrorDto        | API→FE    | Shared envelope                                                                                                                                                                                                                                                                                           |
 
 The request accepts entered UOM; the response returns entered and normalized values. Server totals and statuses are authoritative.
 
 <a id="78-stage-3-canonical-purchase-order-contract"></a>
+
 ### 7.8 Stage 3 Canonical Purchase Order Contract
 
 The backend exposes supplier, inventory, sale, and purchase-order facts through the versioned Canonical contract. The following example is the documented canonical purchase-order response:
 
-~~~json
+```json
 {
- "schema": "canonical.PurchaseOrder",
- "version": "1.0",
- "organization_id": "org-01",
- "id": "po-501",
- "supplier_id": "supplier-08",
- "branch_id": "branch-01",
- "status": "PARTIALLY_RECEIVED",
- "currency": "EGP",
- "total_amount": 5475.00,
- "paid_amount": 2000.00,
- "payment_status": "PARTIALLY_PAID",
- "lines": [
- {
- "product_id": "product-01",
- "ordered_quantity_base": 300,
- "received_quantity_base": 120,
- "remaining_quantity_base": 180,
- "unit_cost_base": 18.25
- }
- ],
- "updated_at": "2026-10-07T16:00:00Z"
+  "schema": "canonical.PurchaseOrder",
+  "version": "1.0",
+  "organization_id": "org-01",
+  "id": "po-501",
+  "supplier_id": "supplier-08",
+  "branch_id": "branch-01",
+  "status": "PARTIALLY_RECEIVED",
+  "currency": "EGP",
+  "total_amount": 5475.0,
+  "paid_amount": 2000.0,
+  "payment_status": "PARTIALLY_PAID",
+  "lines": [
+    {
+      "product_id": "product-01",
+      "ordered_quantity_base": 300,
+      "received_quantity_base": 120,
+      "remaining_quantity_base": 180,
+      "unit_cost_base": 18.25
+    }
+  ],
+  "updated_at": "2026-10-07T16:00:00Z"
 }
-~~~
+```
 
 A supported Stage 3 canonical write is limited to creating a draft purchase order. The request uses the existing Stage 3 command fields and normal ERP validation; .NET derives the actor from the JWT, checks current organization/branch scope, computes authoritative totals, persists DRAFT, and writes audit. Ordering/sending, receiving, supplier payment, and vendor-return posting remain normal ERP operations and are not exposed as canonical write commands.
 
 <a id="79-stage-3-api-endpoints-contract"></a>
+
 ### 7.9 Stage 3 API Endpoints Contract
 
-| Method and route | Request → response |
-|---|---|
-| GET/POST /api/v1/suppliers | page / CreateSupplierRequest → SupplierDto |
-| GET/PATCH /api/v1/suppliers/{id} | supplier DTO / allowed patch |
-| PATCH /api/v1/suppliers/{id}/status | is_active → supplier DTO |
-| POST /api/v1/purchase-orders | CreatePurchaseOrderRequest → PurchaseOrderDto |
+| Method and route                                                             | Request → response                                                                                                          |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| GET/POST /api/v1/suppliers                                                   | page / CreateSupplierRequest → SupplierDto                                                                                  |
+| GET/PATCH /api/v1/suppliers/{id}                                             | supplier DTO / allowed patch                                                                                                |
+| PATCH /api/v1/suppliers/{id}/status                                          | is_active → supplier DTO                                                                                                    |
+| POST /api/v1/purchase-orders                                                 | CreatePurchaseOrderRequest → PurchaseOrderDto                                                                               |
 | PATCH /api/v1/purchase-orders/{id}; POST /api/v1/purchase-orders/{id}/cancel | DRAFT-only edit; DRAFT or APPROVED-before-ORDERED cancellation only when paid_amount=0 and with a reason → PurchaseOrderDto |
-| GET /api/v1/purchase-orders | supplier/branch/status/date/cursor → page |
-| GET /api/v1/purchase-orders/{id} | details and totals |
-| POST /api/v1/purchase-orders/{id}/approve | idempotency → PO |
-| POST /api/v1/purchase-orders/{id}/order | mark ordered/sent → PO |
-| POST /api/v1/purchase-orders/{id}/receive | ReceivePurchaseOrderRequest → PurchaseReceiptResultDto |
-| POST /api/v1/purchase-orders/{id}/cancel-remaining | BranchLocal only; reason/key → PO CLOSED when no remaining obligation; emits CANCEL_REMAINING_PURCHASE_ORDER |
-| POST /api/v1/supplier-payments | RecordSupplierPaymentRequest → SupplierPaymentDto |
-| GET /api/v1/supplier-payments/{id} | payment detail |
-| GET /api/v1/vendor-returns; GET /api/v1/vendor-returns/{id} | List/detail → VendorReturnDto |
-| POST /api/v1/vendor-returns | CreateVendorReturnRequest → draft return |
-| POST /api/v1/vendor-returns/{id}/cancel | DRAFT-only cancel → VendorReturnDto |
-| POST /api/v1/vendor-returns/{id}/post | idempotency → posted return |
-| GET /api/v1/canonical/suppliers | updated_since/cursor → CanonicalSupplier[] |
-| GET /api/v1/canonical/purchase-orders | branch/status/updated_since/cursor → CanonicalPurchaseOrder[] |
-| GET /api/v1/canonical/inventory | branch/product/cursor → CanonicalInventoryItem[] |
-| POST /api/v1/canonical/purchase-orders/drafts | AI draft command → CanonicalWriteResult |
+| GET /api/v1/purchase-orders                                                  | supplier/branch/status/date/cursor → page                                                                                   |
+| GET /api/v1/purchase-orders/{id}                                             | details and totals                                                                                                          |
+| POST /api/v1/purchase-orders/{id}/approve                                    | idempotency → PO                                                                                                            |
+| POST /api/v1/purchase-orders/{id}/order                                      | mark ordered/sent → PO                                                                                                      |
+| POST /api/v1/purchase-orders/{id}/receive                                    | ReceivePurchaseOrderRequest → PurchaseReceiptResultDto                                                                      |
+| POST /api/v1/purchase-orders/{id}/cancel-remaining                           | BranchLocal only; reason/key → PO CLOSED when no remaining obligation; emits CANCEL_REMAINING_PURCHASE_ORDER                |
+| POST /api/v1/supplier-payments                                               | RecordSupplierPaymentRequest → SupplierPaymentDto                                                                           |
+| GET /api/v1/supplier-payments/{id}                                           | payment detail                                                                                                              |
+| GET /api/v1/vendor-returns; GET /api/v1/vendor-returns/{id}                  | List/detail → VendorReturnDto                                                                                               |
+| POST /api/v1/vendor-returns                                                  | CreateVendorReturnRequest → draft return                                                                                    |
+| POST /api/v1/vendor-returns/{id}/cancel                                      | DRAFT-only cancel → VendorReturnDto                                                                                         |
+| POST /api/v1/vendor-returns/{id}/post                                        | idempotency → posted return                                                                                                 |
+| GET /api/v1/canonical/suppliers                                              | updated_since/cursor → CanonicalSupplier[]                                                                                  |
+| GET /api/v1/canonical/purchase-orders                                        | branch/status/updated_since/cursor → CanonicalPurchaseOrder[]                                                               |
+| GET /api/v1/canonical/inventory                                              | branch/product/cursor → CanonicalInventoryItem[]                                                                            |
+| POST /api/v1/canonical/purchase-orders/drafts                                | AI draft command → CanonicalWriteResult                                                                                     |
 
 Receiving, payments and returns require idempotency. Return 409 for invalid transitions, 422 for expiry/quantity policy, 403 for forbidden branch/supplier.
 
 <a id="710-stage-3-domain-functional-breakdown"></a>
+
 ### 7.10 Stage 3 Domain Functional Breakdown
 
-| Functional Area | Backend Responsibility | Acceptance Criteria |
-|---|---|---|
-| Supplier & Purchase Order Aggregate | Supplier and PO aggregate, line snapshots, header totals and lifecycle | Draft/approval/order state works; totals server-owned and persisted |
-| One-Step Receiving & Costing | One-step receipt, lot/shelf-life validation, ledger linking and moving average | Full/partial receive atomic; rejected stock not sellable; retry safe |
-| Supplier Payments & Vendor Returns | SupplierPayment/aggregate and VendorReturn workflows; canonical purchase fixtures | Partial pay reconciles; return cannot exceed accepted on-hand quantity |
+| Functional Area                           | Backend Responsibility                                                                          | Acceptance Criteria                                                                |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Supplier & Purchase Order Aggregate       | Supplier and PO aggregate, line snapshots, header totals and lifecycle                          | Draft/approval/order state works; totals server-owned and persisted                |
+| One-Step Receiving & Costing              | One-step receipt, lot/shelf-life validation, ledger linking and moving average                  | Full/partial receive atomic; rejected stock not sellable; retry safe               |
+| Supplier Payments & Vendor Returns        | SupplierPayment/aggregate and VendorReturn workflows; canonical purchase fixtures               | Partial pay reconciles; return cannot exceed accepted on-hand quantity             |
 | DbContext Integration, Audit & AI Adapter | Auth/branch policy, shared DbContext/migration, API contract, audit/outbox, AI draft PO adapter | One context and physical FKs compile; AI writes draft only with actor/prompt audit |
 
 ---
+
 <a id="8-cross-cutting-backend-contracts-interfaces"></a>
+
 ## 8. Cross-Cutting Backend Contracts & Interfaces
 
 <a id="81-erp-internal-application-querycommand-interfaces"></a>
+
 ### 8.1 ERP Internal Application Query/Command Interfaces
 
 Not HTTP. The .NET Application layer exposes typed query and command services, such as `IInventoryQueries.GetItemAsync(productId, branchId)` and `IPurchaseOrderService.ReceiveAsync(...)`. The Integration module maps their results to canonical shapes. This is an internal .NET contract, not a separate external path.
 
 <a id="82-canonical-http-api-specifications-staged-endpoints"></a>
+
 ### 8.2 Canonical HTTP API Specifications & Staged Endpoints
 
 All external endpoints are versioned under `/api/v1/`. The `/contracts` directory is the shared source of truth (OpenAPI + JSON Schema).
 
 Canonical reads use stage-supported collection endpoints:
+
 - `GET /api/v1/canonical/products`
 - `GET /api/v1/canonical/inventory`
 - `GET /api/v1/canonical/sales`
@@ -1587,40 +1673,41 @@ Filter parameters include branch, time range, `updated_since`, and cursor pagina
 
 #### Example: CanonicalInventoryItem JSON Response
 
-~~~json
+```json
 {
- "schema": "canonical.InventoryItem",
- "version": "1.0",
- "branch_id": "branch-01",
- "product_id": "product-01",
- "location_id": "location-01",
- "base_uom_code": "tablet",
- "quantity_on_hand_base": 240,
- "available_quantity_base": 240,
- "average_unit_cost_base": 1.25,
- "reorder_point_base": 60,
- "lots": [
- {
- "batch_id": "batch-01",
- "available_quantity_base": 120,
- "manufactured_on": "2026-01-01",
- "expires_on": "2027-08-31",
- "quality_status": "AVAILABLE"
- }
- ],
- "updated_at": "2026-10-07T12:00:00Z"
+  "schema": "canonical.InventoryItem",
+  "version": "1.0",
+  "branch_id": "branch-01",
+  "product_id": "product-01",
+  "location_id": "location-01",
+  "base_uom_code": "tablet",
+  "quantity_on_hand_base": 240,
+  "available_quantity_base": 240,
+  "average_unit_cost_base": 1.25,
+  "reorder_point_base": 60,
+  "lots": [
+    {
+      "batch_id": "batch-01",
+      "available_quantity_base": 120,
+      "manufactured_on": "2026-01-01",
+      "expires_on": "2027-08-31",
+      "quality_status": "AVAILABLE"
+    }
+  ],
+  "updated_at": "2026-10-07T12:00:00Z"
 }
-~~~
+```
 
 #### Staged Write Commands:
 
-| Stage | Canonical command | Result |
-| --- | --- | --- |
-| 1 | POST /api/v1/canonical/configuration/products or PUT /api/v1/canonical/configuration/reorder-rules | CanonicalWriteResult for the approved product/UOM/reorder configuration |
-| 2 | No Stage 2 Canonical write command | Canonical API exposes posted cashier sales and returns read-only; it cannot create or complete a cashier order |
-| 3 | POST /api/v1/canonical/purchase-orders/drafts | CanonicalWriteResult plus normal PurchaseOrderDto for a draft PO |
+| Stage | Canonical command                                                                                  | Result                                                                                                         |
+| ----- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1     | POST /api/v1/canonical/configuration/products or PUT /api/v1/canonical/configuration/reorder-rules | CanonicalWriteResult for the approved product/UOM/reorder configuration                                        |
+| 2     | No Stage 2 Canonical write command                                                                 | Canonical API exposes posted cashier sales and returns read-only; it cannot create or complete a cashier order |
+| 3     | POST /api/v1/canonical/purchase-orders/drafts                                                      | CanonicalWriteResult plus normal PurchaseOrderDto for a draft PO                                               |
 
 For supported writes, the request body is the existing Stage DTO: `request_id`, `source_prompt_id`, `idempotency_key`, `branch_id`, and typed product/UOM or purchase-order draft lines.
+
 - Stage 1 configuration retains its action and target-ID fields.
 - Stage 3 retains `created_by_type=AI_ASSISTED` where defined by the command contract.
 - The user/actor is derived from the JWT; the integration caller cannot supply an arbitrary actor or approval field that the backend contract does not define.
@@ -1628,56 +1715,73 @@ For supported writes, the request body is the existing Stage DTO: `request_id`, 
 - .NET revalidates organization and branch access, target state, business rules, totals, and idempotency before persisting.
 
 <a id="83-canonical-draft-purchase-order-command"></a>
+
 ### 8.3 Canonical Draft Purchase Order Command
 
 The canonical draft PO endpoint maps only typed Stage 3 command fields: `request_id`, `source_prompt_id` where defined, `idempotency_key`, `supplier_id`, `branch_id`, `expected_on`, and supported product/UOM/quantity/cost lines. .NET validates the payload, authorizes the authenticated actor and branch, computes authoritative totals, and returns the normal purchase-order resource. Approval metadata is not an ERP business field unless the stage DTO explicitly defines it.
 
 <a id="84-erp-eventing-transactional-outbox-contract"></a>
+
 ### 8.4 ERP Eventing & Transactional Outbox Contract
 
 The ERP backend writes versioned `OUTBOX_EVENT` records in its `integration` schema and publishes them to backend-owned infrastructure (Redis/workers). That contract is for ERP-side transactional delivery and audit:
+
 - External consumers do not consume the ERP stream or outbox directly; supported incremental reads use Canonical API collection endpoints with stage-defined `updated_since`/`cursor` filters.
 - Any future event acceleration must be exposed as a Canonical API capability before external consumers can use it.
 
 <a id="85-authentication-jwt-token-claims-contract"></a>
+
 ### 8.5 Authentication & JWT Token Claims Contract
 
 Example identifiers below are UUID-shaped illustrative values; production tokens contain actual issued identifiers. The role/scope example is a Pharmacist and therefore excludes `user:admin`.
 
 User JWTs are issued by .NET Identity using asymmetric RS256 signing keys identified by a distinct, never-reused `kid` for every key; consumers validate through `GET /.well-known/jwks.json`. JWTs include `iss`, `aud`, and `kid`; external services validate through the published JWKS endpoint. Private keys remain in protected cloud/branch key stores, are never shared as a common secret. For routine rotation, publish and distribute the new public key/JWKS entry before issuing any token with the new private key; begin signing with the new key only after validators can resolve its `kid`. Retain the old public key while any token signed by it can still be valid, then remove it only after the maximum applicable token lifetime plus configured clock-skew/cache allowance. A `kid` is never reused for different key material. For suspected compromise, stop signing with that key immediately, mark its `kid` revoked in validators and JWKS distribution, reject tokens bearing it (including otherwise unexpired tokens), issue replacement key material with a fresh `kid`, force affected sessions to reauthenticate, audit incident actions, and notify/reprovision branch runtimes through the authenticated recovery channel; branch-local offline tokens remain constrained by their 24-hour maximum validity and branch-local trust boundary. Key compromise response and branch recovery must be rehearsed before production. External services validate signature, issuer, audience, expiry, subject, role, organization, branch scope, and authorized branch IDs. Scopes are an authorization vocabulary, not self-granted privileges; the API checks role, tenant, branch, runtime and resource state on every call. Role permissions: Admin manages branches/users/master data and organization-wide reads; Pharmacist manages catalog and branch inventory/purchasing/returns but not user administration; Cashier creates/completes POS sales and eligible sales returns only. `USER_BRANCH_ACCESS` governs ASSIGNED users; an Admin with `branch_scope=ALL` may operate across organization branches. Branch-local runtime additionally restricts every token to its enrolled branch. Tenant users have a home branch through Employee and explicit access through `identity.USER_BRANCH_ACCESS`; `branch_scope=ALL` is permitted only for an authorized organization Admin. Branch-local tokens are always constrained to the enrolled branch.
 
-~~~json
+```json
 {
- "sub": "550e8400-e29b-41d4-a716-446655440000",
- "roles": ["Pharmacist"],
- "organization_id": "550e8400-e29b-41d4-a716-446655440001",
- "branch_scope": "ASSIGNED",
- "branch_ids": ["550e8400-e29b-41d4-a716-446655440002"],
- "scopes": ["inventory:read", "inventory:write", "purchase-order:read", "purchase-order:draft", "purchase-order:approve", "purchase-order:receive", "supplier-payment:write", "return:write"],
- "iat": 1758700000,
- "exp": 1758703600
+  "sub": "550e8400-e29b-41d4-a716-446655440000",
+  "roles": ["Pharmacist"],
+  "organization_id": "550e8400-e29b-41d4-a716-446655440001",
+  "branch_scope": "ASSIGNED",
+  "branch_ids": ["550e8400-e29b-41d4-a716-446655440002"],
+  "scopes": [
+    "inventory:read",
+    "inventory:write",
+    "purchase-order:read",
+    "purchase-order:draft",
+    "purchase-order:approve",
+    "purchase-order:receive",
+    "supplier-payment:write",
+    "return:write"
+  ],
+  "iat": 1758700000,
+  "exp": 1758703600
 }
-~~~
+```
 
 Scheduled ingestion uses a separate short-lived .NET-issued service token limited to read-only canonical collection endpoints and the configured organization/branches. It cannot invoke write commands. The exact JWT issuer and claims remain owned by the .NET Identity contract. Scope values are defined here: `inventory:read/write`, `sales:read/write`, `purchase-order:read/draft/approve/receive`, `supplier-payment:write`, `return:read/write`, `sync:retry`, and `user:admin`. `sync:retry` is valid only for an authorized cloud synchronization administrator and still requires resource-level authorization plus an audit reason. These are requested capabilities only; endpoint policy and resource state remain authoritative.
 
 <a id="86-standard-api-error-contract-validation-envelopes"></a>
+
 ### 8.6 Standard API Error Contract & Validation Envelopes
 
 All APIs use `/api/v1/`. A validation or business rule failure returns the standard error envelope. Malformed syntax/protocol is 400; well-formed field/domain validation is 422; state, sequence, stock, and idempotency conflicts are 409. Each error code maps to exactly one status:
 
-~~~json
+```json
 {
- "error": {
- "code": "OUT_OF_STOCK",
- "message": "The requested quantity is not currently available.",
- "details": [{ "field": "lines[0].quantity", "issue": "available quantity is 3" }],
- "trace_id": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
- }
+  "error": {
+    "code": "OUT_OF_STOCK",
+    "message": "The requested quantity is not currently available.",
+    "details": [
+      { "field": "lines[0].quantity", "issue": "available quantity is 3" }
+    ],
+    "trace_id": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+  }
 }
-~~~
+```
 
 Common Error Codes:
+
 - `MALFORMED_REQUEST` (HTTP 400; malformed JSON, invalid syntax, or missing required protocol header)
 - `VALIDATION_ERROR` (HTTP 422; syntactically valid request with field, type, range, or domain validation failure)
 - `UNAUTHORIZED` (HTTP 401)
@@ -1691,11 +1795,13 @@ Common Error Codes:
 ERP validation and forbidden-branch errors are passed through with their proper HTTP status codes.
 
 <a id="87-observability-distributed-tracing-w3c-traceparent"></a>
+
 ### 8.7 Observability, Distributed Tracing & W3C Traceparent
 
 Propagate `traceparent` (W3C standard) on every HTTP call across ERP APIs and external consumers where supported. A structured log line uses `{ts, level, service, trace_id, message, ...extra}`. Never log access tokens, passwords, or unnecessary prompt text.
 
 <a id="88-erp-api-consumer-contract"></a>
+
 ### 8.8 ERP API Consumer Contract
 
 - Authoritative totals, tax calculations, discounts, and inventory availability are server-calculated; client-side values are purely informational.
@@ -1704,12 +1810,15 @@ Propagate `traceparent` (W3C standard) on every HTTP call across ERP APIs and ex
 - No frontend writes canonical data directly or treats an external AI recommendation as a completed transaction.
 
 ---
+
 <a id="89-consolidated-cross-stage-rules"></a>
+
 ### 8.9 Consolidated Cross-Stage Rules
 
 The following rules apply across stages and supplement the stage-specific schemas and workflows.
 
 #### 8.9.1 Organization-aware keys and actor references
+
 - Actor/creator employee references use `(organization_id, employee_id)` and do not require the employee home branch to equal the business document branch. Application authorization checks whether the authenticated user may act at that target branch using `USER_BRANCH_ACCESS` or Admin `branch_scope=ALL`. Same-branch FKs remain required for branch-owned locations, batches, source documents, and child lines.
 - Every tenant-owned table with a single-column primary key has a unique alternate key `(organization_id, primary_id)`. Organization itself is keyed by `organization_id`; `inventory.STOCK_BALANCE` keeps its composite primary key. Every tenant-owned FK uses `organization_id` in the referencing and referenced tuples. This is already mandated by the shared Blueprint convention.
 - Resolve `identity.USER_ACCOUNT` employee uniqueness as `UNIQUE (organization_id, employee_id)`, consistent with the tenant-aware key convention. Keep the composite employee FK `(organization_id, employee_id)`.
@@ -1718,6 +1827,7 @@ The following rules apply across stages and supplement the stage-specific schema
 - The exact organization-aware unique keys and FK constraints above are logical requirements. Their physical presence must be checked against DDL or EF Core configuration during implementation validation.
 
 #### 8.9.2 Synchronization recovery and idempotency
+
 - Preserve atomicity: local business writes and SYNC_OUTBOX insert commit together; cloud business application and SYNC_INBOX result commit together. An `operation_id` is applied at most once. Duplicate delivery returns the current persisted inbox outcome; after an authorized retry successfully applies a previously conflicted operation, subsequent deliveries return `ALREADY_APPLIED`.
 - Retry transient transport and server failures using the already documented bounded exponential backoff. Do not discard an operation after a retry count. A deterministic business conflict stops automatic retry, remains visible as a review state, and is not resolved by editing a posted document. The branch retains the operation until an explicit cloud acknowledgment; a conflict acknowledgment is recorded as a conflict outcome, not as successful application.
 - Retain cloud SYNC_INBOX deduplication records for the lifetime of the ERP business records; do not purge operation IDs in the MVP. Retain branch SYNC_OUTBOX rows until acknowledged and retain their acknowledged rows with the associated local business history. Retain IDEMPOTENCY_RECORD and OUTBOX_EVENT for the lifetime of their linked business/audit records; no purge or archive job is enabled in the MVP. Backups must include these records so restore cannot cause duplicate application.
@@ -1726,6 +1836,7 @@ The following rules apply across stages and supplement the stage-specific schema
 - A deterministic conflict does not consume or advance the sequence. The exact operation remains at the branch queue head; all later operations remain blocked because skipping it would make the cloud ledger incomplete. The branch-local ERP continues to accept locally valid offline business operations and append them to its durable outbox; they are not visible in cloud projections or consumers until the blocked sequence is resolved. An authorized Cloud synchronization administrator may call `POST /api/v1/sync/operations/{operationId}/retry` after correcting a recoverable reference/version issue. Retry processes the same immutable operation ID, sequence, payload version, and hash; it cannot edit or skip it. For irreparable or tampered payloads, operator recovery means restoring the exact immutable outbox row (operation ID, sequence, payload version, canonical payload, and hash) from a verified branch backup, then retrying it. If no exact copy exists, the sequence remains blocked indefinitely; the MVP defines no edit, skip, or consume-as-rejected path. Resolve conflicts through normal authorized ERP commands when such a command is already supported; no new remote mutation capability is introduced here.
 
 #### 8.9.3 Inventory eligibility, returns, costing, and precision
+
 - FEFO orders eligible dated batches by `expires_on` ascending; equal expiry dates break ties by `batch_id` ascending for deterministic allocation. A NULL expiry means no known expiry and sorts after dated stock. Expiry comparisons use the Organization’s configured business date. Expired-by-date, RECALLED, QUARANTINED, and non-sellable stock is never available for sale.
 - Preserve `inventory.INVENTORY_BATCH.expires_on` as nullable. A NULL-expiry batch is permitted only for the system NON-LOT batch of a product with lot_tracking_required=false. A lot-tracked receipt requires batch_number and expires_on. manufactured_on is optional; when present it cannot exceed expires_on. No product/supplier-specific shelf-life policy is modeled in this MVP.
 - `inventory.INVENTORY_BATCH.batch_id` must be identical for the same organization, product, exact `batch_number`, and `expires_on` tuple on every branch. Generate it in each runtime as UUIDv5 using the RFC 4122 DNS namespace UUID 6ba7b810-9dad-11d1-80b4-00c04fd430c8 and the canonical UTF-8 JSON object {organization_id, product_id, batch_number, expires_on}; encode NULL expiry as JSON null, use canonical property ordering and invariant formatting, and do not case-fold or trim `batch_number`. This makes the existing unique natural key converge across branches without remapping ledger references. If the same identity arrives with conflicting non-identity attributes, the cloud records a conflict for review and does not silently overwrite them. For the documented batch-keyed STOCK_BALANCE primary key, create one system batch row per non-lot-tracked product using reserved batch number `NON-LOT` and NULL dates with the same deterministic rule. This row cannot be used by a lot-tracked product. Lot-tracking configuration cannot change while stock or posted ledger history exists for the product.
@@ -1736,11 +1847,13 @@ The following rules apply across stages and supplement the stage-specific schema
 - Store quantities and unit costs at the documented `numeric(18,4)` precision and monetary totals at `numeric(18,2)`. Round calculated unit cost to four decimal places and monetary totals to two decimal places at persistence boundaries using PostgreSQL numeric rounding (half away from zero); do not round intermediate allocation inputs earlier than necessary. Keep historical line and cost snapshots immutable after posting.
 
 #### 8.9.4 Purchase-order lifecycle
+
 - Keep the documented states `DRAFT`, `APPROVED`, `ORDERED`, `PARTIALLY_RECEIVED`, `RECEIVED`, `CLOSED`, and `CANCELLED`.
 - `RECEIVED` means all ordered quantity has been accepted; where any quantity was rejected, the obligation remains open until replacement accepted or explicitly cancelled. `CLOSED` means the accepted quantity is final and any remaining quantity was explicitly cancelled with a reason. A partially received order may be closed only after that cancellation. `CANCELLED` is allowed while DRAFT or APPROVED and not yet ordered, only when no supplier payment has been posted; after ordering, use the documented remaining-quantity cancellation path and preserve the original ordered record.
 - The receiving command validates the full request and updates PO quantities, batch, ledger, balances, costs, audit, and outbox atomically. Invalid state transitions return the documented conflict response.
 
 #### 8.9.5 Role and audit field definitions
+
 - Adopt the existing three-role walkthrough as the MVP role set: `Admin`, `Pharmacist`, `Cashier`; persist in `identity.USER_ACCOUNT.role varchar(30)` and enforce the same closed set with a database CHECK and API authorization. Use these exact case-sensitive values in JWT role claims. `Admin` manages organization/branch and master data; `Pharmacist` handles product/inventory/purchasing workflows; `Cashier` handles sales and eligible sales returns. All roles remain limited by organization and branch scope; no role bypasses tenant isolation.
 - Resolve the Stage 1 audit fields without changing the conceptual contract: `actor_user_id uuid NULL`, `actor_employee_id uuid NULL`, `actor_type varchar(20)`, `action varchar(80)`, `entity_schema varchar(63)`, `entity_name varchar(100)`, `entity_id uuid`, nullable before/after JSONB, and the already documented trace/source fields. The slash notation `entity_schema/name/id` is decomposed as schema, entity name, and entity UUID. Keep append-only audit behavior.
 
@@ -1748,29 +1861,30 @@ The following rules apply across stages and supplement the stage-specific schema
 
 The following definitions are part of the MVP schema contract; they are engineering choices where the source did not specify a type, and are identified for later physical implementation verification.
 
-| Table.Column | Adopted definition |
-|---|---|
-| `identity.EMPLOYEE.email` | `varchar(254) NULL` |
-| `identity.EMPLOYEE.phone` | `varchar(30) NULL` |
-| `catalog.PRODUCT_CATEGORY.description` | `varchar(250) NULL` |
-| `catalog.PRODUCT.generic_name` | `varchar(180) NULL` |
-| `catalog.PRODUCT.brand_name` | `varchar(180) NULL` |
-| `catalog.PRODUCT.image_url` | `varchar(300) NULL` |
-| `inventory.INVENTORY_TXN.reason_code` | `varchar(40) NULL` |
-| `inventory.INVENTORY_TXN.note` | `varchar(500) NULL` |
-| `integration.OUTBOX_EVENT.attempt_count` | `int NOT NULL DEFAULT 0 CHECK (attempt_count >= 0)` |
-| `integration.OUTBOX_EVENT.last_error` | `varchar(500) NULL` |
-| `integration.AUDIT_LOG.actor_type` | `varchar(20) NOT NULL` |
-| `integration.AUDIT_LOG.action` | `varchar(80) NOT NULL` |
-| `integration.AUDIT_LOG.entity_schema` | `varchar(63) NOT NULL` |
-| `integration.AUDIT_LOG.entity_name` | `varchar(100) NOT NULL` |
-| `sales.SALES_PAYMENT.note` | `varchar(500) NULL` |
-| `integration.SYNC_OUTBOX.last_error` | `varchar(500) NULL` |
-| `integration.SYNC_INBOX.result_code` | `varchar(30) NULL` while `processing_status = RECEIVED`; terminal values in §4.3 |
+| Table.Column                             | Adopted definition                                                               |
+| ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `identity.EMPLOYEE.email`                | `varchar(254) NULL`                                                              |
+| `identity.EMPLOYEE.phone`                | `varchar(30) NULL`                                                               |
+| `catalog.PRODUCT_CATEGORY.description`   | `varchar(250) NULL`                                                              |
+| `catalog.PRODUCT.generic_name`           | `varchar(180) NULL`                                                              |
+| `catalog.PRODUCT.brand_name`             | `varchar(180) NULL`                                                              |
+| `catalog.PRODUCT.image_url`              | `varchar(300) NULL`                                                              |
+| `inventory.INVENTORY_TXN.reason_code`    | `varchar(40) NULL`                                                               |
+| `inventory.INVENTORY_TXN.note`           | `varchar(500) NULL`                                                              |
+| `integration.OUTBOX_EVENT.attempt_count` | `int NOT NULL DEFAULT 0 CHECK (attempt_count >= 0)`                              |
+| `integration.OUTBOX_EVENT.last_error`    | `varchar(500) NULL`                                                              |
+| `integration.AUDIT_LOG.actor_type`       | `varchar(20) NOT NULL`                                                           |
+| `integration.AUDIT_LOG.action`           | `varchar(80) NOT NULL`                                                           |
+| `integration.AUDIT_LOG.entity_schema`    | `varchar(63) NOT NULL`                                                           |
+| `integration.AUDIT_LOG.entity_name`      | `varchar(100) NOT NULL`                                                          |
+| `sales.SALES_PAYMENT.note`               | `varchar(500) NULL`                                                              |
+| `integration.SYNC_OUTBOX.last_error`     | `varchar(500) NULL`                                                              |
+| `integration.SYNC_INBOX.result_code`     | `varchar(30) NULL` while `processing_status = RECEIVED`; terminal values in §4.3 |
 
 For other fields, explicit same-entity types and shared precision conventions control. A bare `varchar` or `numeric` remains unspecified where no convention supplies the dimension.
 
 #### 8.9.7 Address mapping and implementation verification
+
 Map Address owned properties to prefixed owner columns: `line1 → address_line1`, `line2 → address_line2`, `city → address_city`, `region → address_region`, `postal_code → address_postal_code`, and `country_code → address_country_code`. The EF Core Owned mapping must implement these names. This logical choice resolves the Blueprint’s prefixed-column convention and Supplier ERD examples; actual column generation is a later migration/EF verification, not a claim of existing implementation.
 
 #### 8.9.8 Decisions versus verification
@@ -1874,48 +1988,53 @@ Numeric cursor redesign for every collection, a third-party module-boundary test
 - Audit log length definitions are uniform everywhere: `actor_type varchar(20)`, `action varchar(80)`, `entity_schema varchar(63)`, `entity_name varchar(100)`.
 
 ---
+
 <a id="9-security-governance-audit-architecture"></a>
+
 ## 9. Security, Governance & Audit Architecture
 
 <a id="91-security-architecture-controls"></a>
+
 ### 9.1 Security Architecture & Controls
 
-| Area | Backend implementation |
-| --- | --- |
-| Authentication | ASP.NET Core Identity issues user JWTs. External services validate the same signed token and have no separate ERP user store. A separate short-lived service token is read-only and used only for scheduled Canonical API synchronization. |
-| Authorization | .NET enforces roles and branch scope on every Canonical API and ERP request. The canonical service remains authoritative. |
+| Area                     | Backend implementation                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Authentication           | ASP.NET Core Identity issues user JWTs. External services validate the same signed token and have no separate ERP user store. A separate short-lived service token is read-only and used only for scheduled Canonical API synchronization.                                                                                                                               |
+| Authorization            | .NET enforces roles and branch scope on every Canonical API and ERP request. The canonical service remains authoritative.                                                                                                                                                                                                                                                |
 | Role permission baseline | Admin: branches/users/catalog, organization-scoped administration and all-branch access when `branch_scope=ALL`; Pharmacist: catalog, inventory adjustments, purchasing, receiving, supplier payments and eligible returns; Cashier: POS order/checkout and eligible sales returns only. Every operation remains tenant-scoped; runtime mode narrows endpoint ownership. |
-| Organization scope | Each tenant-owned row carries organization_id; every request validates branch scope. PostgreSQL RLS is enabled and forced; app DB role cannot bypass it, and transactions set organization context locally. |
-| API security | HTTPS through Nginx, input validation in .NET, rate limits, versioned endpoints, and idempotency for retriable writes. |
-| Secrets | Separate credentials for ERP and external integration. External consumers have no `erp_db` or ERP Redis secret. Use .env/Docker secrets; never commit credentials. Separate RS256 signing keys by runtime, publish JWKS, and rotate keys with overlapping key IDs; never share a symmetric signing secret with consumers. |
-| Encryption | TLS in transit, disk encryption at rest, and ASP.NET Identity password hashing. Apply account lockout/rate limiting and refresh-token rotation/reuse detection; a reused consumed token revokes its token family. |
-| Data minimization | Do not send employee credentials or unnecessary personal data to external consumers. Aggregate sales and stock for analytics. |
-| Audit logs | Successful ERP mutations remain in append-only integration.AUDIT_LOG in erp_db. |
-| Agent/tool permissions | All AI writes require an approved ActionProposal. Only configuration and draft commands are exposed; payment, inventory posting, returns, invoice posting, and supplier transmission have no AI tool. |
-| Prompt injection | Treat canonical strings and notes as untrusted. Validate typed tool arguments in code; never let free text bypass the allow-list. |
-| PII and demo data | Use synthetic or clearly consented data. Redact traces; POS canonical contracts contain no customer or delivery data. |
-| Network security | External integration can reach the Canonical API only; it has no route/credentials for `erp_db` or ERP Redis. |
+| Organization scope       | Each tenant-owned row carries organization_id; every request validates branch scope. PostgreSQL RLS is enabled and forced; app DB role cannot bypass it, and transactions set organization context locally.                                                                                                                                                              |
+| API security             | HTTPS through Nginx, input validation in .NET, rate limits, versioned endpoints, and idempotency for retriable writes.                                                                                                                                                                                                                                                   |
+| Secrets                  | Separate credentials for ERP and external integration. External consumers have no `erp_db` or ERP Redis secret. Use .env/Docker secrets; never commit credentials. Separate RS256 signing keys by runtime, publish JWKS, and rotate keys with overlapping key IDs; never share a symmetric signing secret with consumers.                                                |
+| Encryption               | TLS in transit, disk encryption at rest, and ASP.NET Identity password hashing. Apply account lockout/rate limiting and refresh-token rotation/reuse detection; a reused consumed token revokes its token family.                                                                                                                                                        |
+| Data minimization        | Do not send employee credentials or unnecessary personal data to external consumers. Aggregate sales and stock for analytics.                                                                                                                                                                                                                                            |
+| Audit logs               | Successful ERP mutations remain in append-only integration.AUDIT_LOG in erp_db.                                                                                                                                                                                                                                                                                          |
+| Agent/tool permissions   | All AI writes require an approved ActionProposal. Only configuration and draft commands are exposed; payment, inventory posting, returns, invoice posting, and supplier transmission have no AI tool.                                                                                                                                                                    |
+| Prompt injection         | Treat canonical strings and notes as untrusted. Validate typed tool arguments in code; never let free text bypass the allow-list.                                                                                                                                                                                                                                        |
+| PII and demo data        | Use synthetic or clearly consented data. Redact traces; POS canonical contracts contain no customer or delivery data.                                                                                                                                                                                                                                                    |
+| Network security         | External integration can reach the Canonical API only; it has no route/credentials for `erp_db` or ERP Redis.                                                                                                                                                                                                                                                            |
 
 **Role and endpoint-group authorization baseline** (all rows also require tenant and branch scope; runtime ownership further limits routes):
 
-| Endpoint group | Admin | Pharmacist | Cashier |
-|---|---|---|---|
-| Organization/branch/user administration | Allow within organization; Admin may have `branch_scope=ALL` | Deny | Deny |
-| Product/category/UOM/reorder configuration | Allow | Allow | Read only |
-| Inventory balances/ledger reads | Allow | Allow | Read eligible stock for POS |
-| Inventory adjustment/opening balance | Allow | Allow | Deny |
-| POS orders, checkout, invoices/payments | Read/manage as authorized; not cashier execution by default | Read only | Create/complete/cancel own branch drafts |
-| Sales return/refund | Allow with approval policy | Allow with approval policy | Receive eligible return; cannot self-approve |
-| Supplier/PO, receiving, supplier payment/vendor return | Allow | Allow | Deny |
-| Canonical approved configuration/draft-PO writes | Allow only after approval and normal ERP authorization | Allow only after approval and normal ERP authorization | Deny |
-| Sync conflict retry | Allow with `sync:retry` scope and audit reason | Deny | Deny |
+| Endpoint group                                         | Admin                                                        | Pharmacist                                             | Cashier                                      |
+| ------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------ | -------------------------------------------- |
+| Organization/branch/user administration                | Allow within organization; Admin may have `branch_scope=ALL` | Deny                                                   | Deny                                         |
+| Product/category/UOM/reorder configuration             | Allow                                                        | Allow                                                  | Read only                                    |
+| Inventory balances/ledger reads                        | Allow                                                        | Allow                                                  | Read eligible stock for POS                  |
+| Inventory adjustment/opening balance                   | Allow                                                        | Allow                                                  | Deny                                         |
+| POS orders, checkout, invoices/payments                | Read/manage as authorized; not cashier execution by default  | Read only                                              | Create/complete/cancel own branch drafts     |
+| Sales return/refund                                    | Allow with approval policy                                   | Allow with approval policy                             | Receive eligible return; cannot self-approve |
+| Supplier/PO, receiving, supplier payment/vendor return | Allow                                                        | Allow                                                  | Deny                                         |
+| Canonical approved configuration/draft-PO writes       | Allow only after approval and normal ERP authorization       | Allow only after approval and normal ERP authorization | Deny                                         |
+| Sync conflict retry                                    | Allow with `sync:retry` scope and audit reason               | Deny                                                   | Deny                                         |
 
 <a id="92-ai-write-restrictions-policy-engine-boundary"></a>
+
 ### 9.2 AI Write Restrictions & Policy Engine Boundary
 
 Every AI-initiated write requires an immutable approved proposal with `request_id`, `source_prompt_id` where defined, `Idempotency-Key`, `trace_id`, exact typed arguments, payload hash, and expiry. Its persistence is external to ERP. The authenticated JWT supplies the actual user and roles; external models cannot choose actor identity from free text.
 
 The authorized integration caller executes only after the same authenticated user explicitly approves the exact proposal through its approved interaction flow. After approval, the command is sent to the existing Canonical API endpoint:
+
 - .NET revalidates scope, branch, target state, and business rules, then writes `AUDIT_LOG` with the actual actor and AI prompt reference.
 - No approval-only fields are added to backend DTOs.
 - Allowed backend-supported operations: product/UOM/reorder configuration (Stage 1) and draft PO creation (Stage 3).
@@ -1923,9 +2042,11 @@ The authorized integration caller executes only after the same authenticated use
 - **Strictly Disallowed for AI:** raw SQL/schema edits, direct balance writes, posting invoices, receiving shipments, recording payments, posting returns, or transmitting supplier orders.
 
 <a id="93-system-of-record-audit-logging-integrationaudit_log"></a>
+
 ### 9.3 System of Record Audit Logging (integration.AUDIT_LOG)
 
 Authoritative business mutations within the ERP are recorded in `integration.AUDIT_LOG`:
+
 - `audit_log_id`: UUID PK
 - `organization_id`: UUID FK
 - `actor_user_id`: UUID nullable FK
@@ -1944,26 +2065,31 @@ Authoritative business mutations within the ERP are recorded in `integration.AUD
 Indexed by organization, entity, actor, and timestamp. Append-only; rows cannot be modified or deleted. The Application role has INSERT/SELECT only for this table; UPDATE/DELETE are denied by database privileges and independently verified in integration tests. Branch-local audit rows are included in the same sequenced sync operation as the business mutation and replicated to cloud; the cloud never invents a branch actor or rewrites the local audit fact.
 
 ---
+
 <a id="10-testing-quality-verification-release-gates"></a>
+
 ## 10. Testing, Quality Verification & Release Gates
 
 <a id="101-backend-testing-strategy"></a>
+
 ### 10.1 Backend Testing Strategy
 
 Required synchronization integration cases include duplicate delivery, reversed arrival order, gap detection, crash after cloud commit before acknowledgment, replay after restore, immutable payload/hash mismatch, and recoverable versus irreparable conflict handling. Feed tests must create delayed/overlapping transactions, prove the commit-ordered sequence cannot skip a late commit, verify page-boundary replay and deactivation/tombstone delivery, and test resnapshot expiry. Tenant isolation tests exercise EF and raw SQL under RLS while reusing pooled connections across organizations, including missing context, rollback, and connection-return paths. Idempotency tests prove atomic rollback and replay. If the conditional `payload_text` protocol is approved, the §4.2.1 encoding/hash/retry/recovery matrix is a release gate; no pass is claimed here.
 
-| Layer | Tool | Scope & Purpose |
-| --- | --- | --- |
-| Unit — .NET | xUnit | Domain invariants (e.g., sales cannot decrement stock below zero, shelf-life validation, location-and-batch weighted-average cost formulas). |
-| Integration — ERP | Testcontainers (.NET) with PostgreSQL erp_db & Redis | Atomic transactions: verify that sale/receipt commits with its ledger, balances, and outbox atomically; verify constraint enforcement. |
-| Contract Tests | JSON Schema validation in CI against /contracts/fixtures | Validate .NET DTOs and canonical endpoints against shared schemas; prevent contract drift. |
-| Database Migrations | EF Core Migration Verification | Verify that the ordered migration chain applies cleanly from an empty database to cloud erp_db and branch-local databases. |
-| Concurrency & Locking | Multi-threaded xUnit tests | Test row locks and row_version checks under concurrent checkouts on the same inventory batch. |
+| Layer                 | Tool                                                     | Scope & Purpose                                                                                                                              |
+| --------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit — .NET           | xUnit                                                    | Domain invariants (e.g., sales cannot decrement stock below zero, shelf-life validation, location-and-batch weighted-average cost formulas). |
+| Integration — ERP     | Testcontainers (.NET) with PostgreSQL erp_db & Redis     | Atomic transactions: verify that sale/receipt commits with its ledger, balances, and outbox atomically; verify constraint enforcement.       |
+| Contract Tests        | JSON Schema validation in CI against /contracts/fixtures | Validate .NET DTOs and canonical endpoints against shared schemas; prevent contract drift.                                                   |
+| Database Migrations   | EF Core Migration Verification                           | Verify that the ordered migration chain applies cleanly from an empty database to cloud erp_db and branch-local databases.                   |
+| Concurrency & Locking | Multi-threaded xUnit tests                               | Test row locks and row_version checks under concurrent checkouts on the same inventory batch.                                                |
 
 <a id="102-development-phases-cumulative-erd-dependency-rules"></a>
+
 ### 10.2 Development Phases & Cumulative ERD Dependency Rules
 
 The backend ERD is delivered in three cumulative stages:
+
 - **Phase 0 — Contracts & Mocks:** OpenAPI and JSON Schemas frozen under `/contracts`; runnable mocks available, including canonical read/approved command contracts required by Stage 1 acceptance.
 - **Phase 1 — Foundation:** Repository layout, PostgreSQL `erp_db`, Redis, Identity/auth foundation, and `PharmacyDbContext` skeleton.
 - **Phase 2 — ERP Core Stage 1:** Identity, catalog, UOM, locations, batches, inventory ledger, and balances.
@@ -1978,6 +2104,7 @@ Stage 1 is the only source for shared identity, product, UOM, batch, location, l
 Do not implement Stage 2 or Stage 3 entities by inventing parallel product, branch, or stock tables. Run one additive migration per stage after all feature configurations for that stage are merged into the single `PharmacyDbContext`.
 
 <a id="103-backend-critical-path-analysis"></a>
+
 ### 10.3 Backend Critical Path Analysis
 
 The backend dependency sequence is Phase 0 contracts → Phase 1 foundation → Stage 1 core and required Stage 1 canonical endpoints → Stage 2 POS/sync → Stage 3 purchasing. Canonical contracts are fixed in Phase 0 and endpoint implementation accompanies the dependent stage; the canonical API is not deferred until after all three stages.
@@ -1985,16 +2112,18 @@ The backend dependency sequence is Phase 0 contracts → Phase 1 foundation → 
 Contract fixtures and validation in CI prevent late integration failures. Future third-party connectors and unstructured-data extensions are deferred (see §13).
 
 <a id="104-cross-stage-release-checklist-verification-gates"></a>
+
 ### 10.4 Cross-Stage Release Checklist & Verification Gates
 
-| Gate | Acceptance Criteria |
-|---|---|
-| Stage 1 | Empty erp_db migration succeeds; UOM and inventory contracts validate; adjustments are ledger-backed and concurrency-safe; AI configuration can execute only after an approved ActionProposal. |
-| Stage 2 | Draft orders do not reserve stock; checkout atomically posts invoice/payment/stock/outbox; retries do not duplicate sales; return policy and refund/stock links are traceable; offline outbox sync operates idempotently. |
-| Stage 3 | PO totals/payments reconcile; partial receiving creates ledger entries; expired/shelf-life failures are typed; vendor return updates stock; an approved AI draft is visible in the normal PO screen. |
-| Final Verification | One .NET solution/PharmacyDbContext codebase, shared cloud erp_db, a branch-local ERP database, ordered backend migrations, fixtures and seed data, full offline-sale-to-reorder walkthrough. |
+| Gate               | Acceptance Criteria                                                                                                                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stage 1            | Empty erp_db migration succeeds; UOM and inventory contracts validate; adjustments are ledger-backed and concurrency-safe; AI configuration can execute only after an approved ActionProposal.                            |
+| Stage 2            | Draft orders do not reserve stock; checkout atomically posts invoice/payment/stock/outbox; retries do not duplicate sales; return policy and refund/stock links are traceable; offline outbox sync operates idempotently. |
+| Stage 3            | PO totals/payments reconcile; partial receiving creates ledger entries; expired/shelf-life failures are typed; vendor return updates stock; an approved AI draft is visible in the normal PO screen.                      |
+| Final Verification | One .NET solution/PharmacyDbContext codebase, shared cloud erp_db, a branch-local ERP database, ordered backend migrations, fixtures and seed data, full offline-sale-to-reorder walkthrough.                             |
 
 #### Minimum Verification Checklist:
+
 - **Domain tests:** UOM math, state transitions, totals, over-return/payment, shelf-life policy.
 - **Infrastructure integration tests:** ERP FK constraints, Owned Address columns, composite stock key, row locks, atomic ledger+balance, migrations from empty.
 - **Contract tests:** OpenAPI/JSON Schema fixtures validate against .NET DTOs.
@@ -2002,18 +2131,22 @@ Contract fixtures and validation in CI prevent late integration failures. Future
 - **End-to-end path:** configure Organization/branch and catalog → opening stock → cashier completes sale and gets invoice/payment/stock issue → disconnect and synchronize the sale later → process an eligible return/refund → read consolidated canonical sales/inventory → receive approved draft PO → one-step receiving updates stock and average cost.
 
 <a id="105-application-service-design-rule"></a>
+
 ### 10.5 Application Service Design Rule
 
 One .NET Application service owns each business operation. It checks the actor and state machine, uses the active cloud or branch-local PharmacyDbContext transaction, writes stock/payment/document history plus audit/outbox (and local SYNC_OUTBOX for offline POS operations), and returns a typed DTO. No client or external model changes balances, totals, or relational rows directly.
 
 ---
+
 <a id="11-deployment-infrastructure-operational-baseline"></a>
+
 ## 11. Deployment, Infrastructure & Operational Baseline
 
 <a id="111-container-service-deployment-architecture"></a>
+
 ### 11.1 Container & Service Deployment Architecture
 
-~~~mermaid
+```mermaid
 flowchart TB
  subgraph Cloud["Cloud ERP"]
  NGINX["Nginx HTTPS reverse proxy"] --> ERPAPI[".NET ERP API"]
@@ -2026,11 +2159,12 @@ flowchart TB
  end
  LOCALAPI <-->|"outbox operations / reference change feeds"| ERPAPI
  CI["GitHub Actions"] -.->|"build, contract and migration checks, deploy"| Cloud
-~~~
+```
 
 Cloud hosts shared PostgreSQL `erp_db`; each branch has its local ERP database. Cloud and branch ERP deployments share one `PharmacyDbContext` codebase and migration sequence.
 
 <a id="112-cloud-and-branch-local-delivery-baseline"></a>
+
 ### 11.2 Cloud and Branch-Local Delivery Baseline
 
 Branch database upgrades are staged and version-gated: a branch may keep its last compatible runtime/schema while offline; migrations must be backward-compatible across the supported payload-version window. The branch must not apply an incompatible schema migration or discard pending outbox rows. Reconnection holds unsupported payload/schema versions for controlled upgrade and replay. A single POS device is a documented recovery risk; encrypted restorable backups remain required, while multi-device HA is deferred.
@@ -2038,6 +2172,7 @@ Branch database upgrades are staged and version-gated: a branch may keep its las
 For local development and demo runtimes, Docker Compose runs PostgreSQL for erp_db alongside the .NET API, ERP Redis, and Nginx. A branch POS runs its branch-local ERP database and API runtime. Production uses the shared multi-tenant cloud erp_db and a separate local database/runtime for each branch. Use separate database users and grants. Apply the same ordered EF migration chain independently to cloud and branch-local ERP databases.
 
 <a id="113-backend-repository-structure-artifact-layout"></a>
+
 ### 11.3 Backend Repository Structure & Artifact Layout
 
 The project uses a monorepo structure to ensure that contract changes, backend implementations, and fixtures stay synchronized:
@@ -2065,58 +2200,62 @@ The project uses a monorepo structure to ensure that contract changes, backend i
   /integration-tests             (Testcontainers integration tests for erp_db and Redis)
 ```
 
-
 <a id="12-risks-and-open-architectural-decisions"></a>
+
 ## 12. Risks and Open Architectural Decisions
 
 <a id="121-technical-risks-and-mitigations"></a>
+
 ### 12.1 Technical Risks and Mitigations
 
-| Risk | Likelihood/Impact | Mitigation |
-| --- | --- | --- |
-| **Contract drift** (changing a canonical field without going through /contracts) | Medium / High | Contract tests in CI fail when backend DTOs disagree with schemas; stage fixtures remain the source of truth. |
-| **Scope creep from ambitious specifications** | High if unmanaged | Items explicitly deferred in §13 are not MVP requirements; approved stage contracts and safeguards remain binding. |
-| **Branch offline sync edge cases & conflicts** | Medium / High | Strict ordered outbox/inbox with durable deduplication; audit the original actor and operation; preserve pending operations and encrypted backups; reject unsupported payload versions explicitly; surface conflicts without silent document overwrites. |
-| **Branch device loss before synchronization** | Medium / High | Encrypted branch-local backup includes pending outbox and identity cache; rehearse restore to replacement hardware before production; never mark unacknowledged operations synced. |
-| **Clock drift or incompatible branch payload version** | Medium / High | Use UTC plus organization timezone; block date-sensitive posting if device time could change the business-date decision; version immutable sync payloads and hold unknown versions for recovery. |
+| Risk                                                                             | Likelihood/Impact | Mitigation                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Contract drift** (changing a canonical field without going through /contracts) | Medium / High     | Contract tests in CI fail when backend DTOs disagree with schemas; stage fixtures remain the source of truth.                                                                                                                                            |
+| **Scope creep from ambitious specifications**                                    | High if unmanaged | Items explicitly deferred in §13 are not MVP requirements; approved stage contracts and safeguards remain binding.                                                                                                                                       |
+| **Branch offline sync edge cases & conflicts**                                   | Medium / High     | Strict ordered outbox/inbox with durable deduplication; audit the original actor and operation; preserve pending operations and encrypted backups; reject unsupported payload versions explicitly; surface conflicts without silent document overwrites. |
+| **Branch device loss before synchronization**                                    | Medium / High     | Encrypted branch-local backup includes pending outbox and identity cache; rehearse restore to replacement hardware before production; never mark unacknowledged operations synced.                                                                       |
+| **Clock drift or incompatible branch payload version**                           | Medium / High     | Use UTC plus organization timezone; block date-sensitive posting if device time could change the business-date decision; version immutable sync payloads and hold unknown versions for recovery.                                                         |
 
 <a id="122-open-architectural-decisions"></a>
+
 ### 12.2 Open Architectural Decisions
 
 The following non-schema deployment and demonstration choices remain outside the fixed logical schema. Recommendations are not requirements unless adopted elsewhere in this document. Schema and workflow requirements are stated in their relevant sections of this specification.
 
-| Decision | Options | Recommendation | Why | Impact if deferred wrongly |
-| --- | --- | --- | --- | --- |
-| Hosting/cloud target for deployment | AWS / Azure / GCP / DigitalOcean / single VM | Any single VM / Docker Compose | Architecture is provider-agnostic | Low — changes deploy scripts, not architecture |
-| Real vs. synthetic pharmacy data | Anonymized real dataset vs. fully synthetic generator | Synthetic generator with realistic seasonality | Eliminates data privacy and legal hurdles | Medium — affects realism of inventory testing |
-| Regulatory/prescription realism | Generic retail-style inventory vs. controlled-substance workflows | Generic retail pharmacy inventory | Proves inventory and ledger invariants without regulatory overhead | Low-Medium |
+| Decision                            | Options                                                           | Recommendation                                 | Why                                                                | Impact if deferred wrongly                     |
+| ----------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------- |
+| Hosting/cloud target for deployment | AWS / Azure / GCP / DigitalOcean / single VM                      | Any single VM / Docker Compose                 | Architecture is provider-agnostic                                  | Low — changes deploy scripts, not architecture |
+| Real vs. synthetic pharmacy data    | Anonymized real dataset vs. fully synthetic generator             | Synthetic generator with realistic seasonality | Eliminates data privacy and legal hurdles                          | Medium — affects realism of inventory testing  |
+| Regulatory/prescription realism     | Generic retail-style inventory vs. controlled-substance workflows | Generic retail pharmacy inventory              | Proves inventory and ledger invariants without regulatory overhead | Low-Medium                                     |
 
 <a id="13-scope-review-deferred-material"></a>
+
 ## 13. Scope Review / Deferred Material
 
 Deferred capabilities: multi-terminal/high-availability POS (the single branch device is a documented single point of failure), cashier shifts and cash-drawer reconciliation, supplier invoice matching, vendor-return supplier credit/accounting, PRODUCT_SUPPLIER sourcing contracts, prescription/controlled-drug classification and related workflows, third-party ERP connector implementations/marketplaces, SaaS billing/subscriptions/tenant administration, and Brain-internal prompts, orchestration, forecasting/model lifecycle and persistence. Current constraints remain: branch-local ledger ownership, tenant/branch authorization, approved canonical write boundary, idempotency, synchronization audit, and source-of-truth rules.
 
 Items below are future or non-MVP statements in the supplied sources, relocated out of the active requirements. “Current constraint” identifies what remains binding for this MVP.
 
-| Original source section | Deferred material | Reason for deferral | Current constraint retained |
-|---|---|---|---|
-| Supplied source scope/exclusion notes | Tenant billing/subscriptions and per-tenant admin portal | Explicitly future product work | `organization_id` tenant isolation remains mandatory. |
-| Supplied future connector examples | Third-party ERP connector implementation and connector marketplace | MVP proves native canonical boundary; no connector implementation is specified as current scope | Canonical API remains the external ERP boundary; consumers receive no database access. |
-| Supplied source scope/exclusion notes | Double-entry accounting/general ledger; blind stocktake; complex inter-branch transit | Explicit MVP exclusions | Ledger-backed stock adjustments and branch scoping remain. |
-| Supplied source scope/exclusion notes | Separate multi-step goods receipt | Stage 3 specifies one-step receiving; repeated partial receipts remain supported | One-step receipt writes inventory ledger entries atomically. |
-| Supplied source scope/exclusion notes | Kafka/RabbitMQ, feature store, vector database | Explicitly not required for MVP | Existing backend-owned Redis/outbox remains; external ERP access stays Canonical API only. |
-| Supplied source scope/exclusion notes | Autonomous high-impact AI actions | Explicitly excluded | Current allowed writes require exact approval; no external posting of stock, invoice, payment, return, receipt, or supplier transmission. |
-| Supplied source scope/exclusion notes | Controlled-substance/prescription workflows | Explicitly excluded unless regulatory requirements demand them | Generic retail-style inventory is the documented MVP scope; applicability of regulation remains unresolved. |
-| Extraction §1.8; Blueprint §§11, 14 | Native mobile, full localization, complex real-time dashboards | Frontend capabilities outside this backend-only MVP | Backend contracts remain versioned and client-independent. |
-| Supplied future integration examples | REST/GraphQL/SDK/webhook/database-only connector implementation patterns | Future integration examples, not current ERP backend work | No direct database access; supported integrations use the canonical contract. |
-| Supplied SaaS/future architecture discussion | SaaS topology, tenant administration, billing, tenant-specific models, marketplace, multi-vertical expansion | Future architecture, not current MVP deployment | Current organization/branch isolation is required and remains in the main specification. |
-| Extraction §3.7; Blueprint §17.2 | Brain-only persistence schemas, feature/model metadata, prompts, and model artifacts | Outside backend ownership | ERP audit and approved Canonical API responsibilities remain specified. |
-| Extraction §§1.3–1.5, 2.8; Blueprint §§9–10 | Brain orchestration, prompts, forecasting/model pipelines, internal tool runtime | Internal Brain implementation; only ERP-facing contract is in scope | Approval, actor/branch checks, typed commands, idempotency, and ERP audit remain. |
-| Blueprint §16.3 | `/api/v1/brain/insights`, `/api/v1/brain/assistant/chat`, `/api/v1/brain/generations`, and `/api/v1/brain/generations/{requestId}` | Brain-to-frontend service contract, not a Pharmacy ERP backend route | Excluded from this backend API; Canonical ERP API contracts remain in §§5–8. |
-| Extraction §11.4; Blueprint §§27, 30 | E-commerce, HR/payroll, inter-branch transfer modules; broker migration; Kubernetes; tracing platform | Future module/infrastructure upgrades | Current modular monolith, PostgreSQL, Redis, Docker Compose, W3C trace propagation, and vertical scaling baseline remain. |
-| Blueprint §§18–19, 21 and extraction where present | Individual assignments, team structure, ownership matrices, parallel work plan | Project management/personnel details | Technical layer/module responsibilities are retained. |
+| Original source section                            | Deferred material                                                                                                                  | Reason for deferral                                                                             | Current constraint retained                                                                                                               |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Supplied source scope/exclusion notes              | Tenant billing/subscriptions and per-tenant admin portal                                                                           | Explicitly future product work                                                                  | `organization_id` tenant isolation remains mandatory.                                                                                     |
+| Supplied future connector examples                 | Third-party ERP connector implementation and connector marketplace                                                                 | MVP proves native canonical boundary; no connector implementation is specified as current scope | Canonical API remains the external ERP boundary; consumers receive no database access.                                                    |
+| Supplied source scope/exclusion notes              | Double-entry accounting/general ledger; blind stocktake; complex inter-branch transit                                              | Explicit MVP exclusions                                                                         | Ledger-backed stock adjustments and branch scoping remain.                                                                                |
+| Supplied source scope/exclusion notes              | Separate multi-step goods receipt                                                                                                  | Stage 3 specifies one-step receiving; repeated partial receipts remain supported                | One-step receipt writes inventory ledger entries atomically.                                                                              |
+| Supplied source scope/exclusion notes              | Kafka/RabbitMQ, feature store, vector database                                                                                     | Explicitly not required for MVP                                                                 | Existing backend-owned Redis/outbox remains; external ERP access stays Canonical API only.                                                |
+| Supplied source scope/exclusion notes              | Autonomous high-impact AI actions                                                                                                  | Explicitly excluded                                                                             | Current allowed writes require exact approval; no external posting of stock, invoice, payment, return, receipt, or supplier transmission. |
+| Supplied source scope/exclusion notes              | Controlled-substance/prescription workflows                                                                                        | Explicitly excluded unless regulatory requirements demand them                                  | Generic retail-style inventory is the documented MVP scope; applicability of regulation remains unresolved.                               |
+| Extraction §1.8; Blueprint §§11, 14                | Native mobile, full localization, complex real-time dashboards                                                                     | Frontend capabilities outside this backend-only MVP                                             | Backend contracts remain versioned and client-independent.                                                                                |
+| Supplied future integration examples               | REST/GraphQL/SDK/webhook/database-only connector implementation patterns                                                           | Future integration examples, not current ERP backend work                                       | No direct database access; supported integrations use the canonical contract.                                                             |
+| Supplied SaaS/future architecture discussion       | SaaS topology, tenant administration, billing, tenant-specific models, marketplace, multi-vertical expansion                       | Future architecture, not current MVP deployment                                                 | Current organization/branch isolation is required and remains in the main specification.                                                  |
+| Extraction §3.7; Blueprint §17.2                   | Brain-only persistence schemas, feature/model metadata, prompts, and model artifacts                                               | Outside backend ownership                                                                       | ERP audit and approved Canonical API responsibilities remain specified.                                                                   |
+| Extraction §§1.3–1.5, 2.8; Blueprint §§9–10        | Brain orchestration, prompts, forecasting/model pipelines, internal tool runtime                                                   | Internal Brain implementation; only ERP-facing contract is in scope                             | Approval, actor/branch checks, typed commands, idempotency, and ERP audit remain.                                                         |
+| Blueprint §16.3                                    | `/api/v1/brain/insights`, `/api/v1/brain/assistant/chat`, `/api/v1/brain/generations`, and `/api/v1/brain/generations/{requestId}` | Brain-to-frontend service contract, not a Pharmacy ERP backend route                            | Excluded from this backend API; Canonical ERP API contracts remain in §§5–8.                                                              |
+| Extraction §11.4; Blueprint §§27, 30               | E-commerce, HR/payroll, inter-branch transfer modules; broker migration; Kubernetes; tracing platform                              | Future module/infrastructure upgrades                                                           | Current modular monolith, PostgreSQL, Redis, Docker Compose, W3C trace propagation, and vertical scaling baseline remain.                 |
+| Blueprint §§18–19, 21 and extraction where present | Individual assignments, team structure, ownership matrices, parallel work plan                                                     | Project management/personnel details                                                            | Technical layer/module responsibilities are retained.                                                                                     |
 
 <a id="131-pending-product-or-architecture-decisions"></a>
+
 ### 13.1 Pending Product or Architecture Decisions
 
 The proposals below are not approved simplifications. Existing entities, fields, constraints, endpoints, transactions, and behavior remain in force until a product/architecture decision is recorded and equivalent integrity/security is demonstrated. No removal or migration is authorized by listing a proposal here.
@@ -2192,4 +2331,3 @@ The proposals below are not approved simplifications. Existing entities, fields,
 - **Implications:** Derivation may be unambiguous in a validated relational graph, but a client-supplied contradictory value must be rejected and the existing cross-document invariant must remain immediately enforced.
 - **Migration/security:** Keep the columns unless a complete derivation proof and all dependent API/reporting uses are reviewed. Do not accept client-supplied redundant values as authoritative.
 - **Decision required:** For each field separately, is its derivation proven and may its storage/API field be removed without weakening constraints or history?
-
