@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
-using PharmacyERP.Infrastructure.Persistence;
+using PharmacyERP.Infrastructure.Persistence.Database;
 
 var builder = WebApplication.CreateBuilder(args);
 

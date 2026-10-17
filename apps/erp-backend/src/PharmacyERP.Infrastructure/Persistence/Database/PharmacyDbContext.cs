@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 
-namespace PharmacyERP.Infrastructure.Persistence;
+namespace PharmacyERP.Infrastructure.Persistence.Database;
 
-public sealed class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : DbContext(options)
+public partial class PharmacyDbContext(DbContextOptions<PharmacyDbContext> options) : DbContext(options)
 {
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
