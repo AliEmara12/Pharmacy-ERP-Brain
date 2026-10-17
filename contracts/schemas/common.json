@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Owner: erp-frontend",
   "$id": "https://example.com/contracts/schemas/common.json",
   "title": "Pharmacy ERP — Shared Contract Primitives",
   "description": "Shared scalar conventions and envelopes used across all domain schemas. Mirrors openapi.erp.yaml components.",

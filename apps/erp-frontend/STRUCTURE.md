@@ -3,6 +3,7 @@
 Single source of truth for where files go in the frontend.
 Frontend only. Stack: Vite + React + TypeScript + react-router. No Next.js anywhere in the project (the backend is .NET).
 Unless stated otherwise, every path below is relative to `src/`.
+Note: Shared API contracts live at the repo root (`../../contracts/`) and are accessed via the `@contracts/*` alias.
  
 ## 1. Folder tree
  
@@ -10,12 +11,6 @@ Unless stated otherwise, every path below is relative to `src/`.
 src/
 ├── main.tsx
 ├── index.css                      Tailwind entry
-│
-├── contracts/                     Phase 0 backend contracts (System of Record)
-│   ├── openapi.erp.yaml           authoritative OpenAPI 3.0 specification
-│   ├── schemas/                   domain JSON schemas (auth, catalog, common, identity, inventory, purchasing, sales)
-│   ├── fixtures/                  canonical mock payloads & test suite (contract-fixtures.test.ts)
-│   └── README.md                  contracts governance & validation guide
 │
 ├── routes/                        routing
 │   ├── router.tsx                 ALL routes are defined here
@@ -52,7 +47,8 @@ src/
 │       ├── tokenStorage.ts        the only file that touches browser storage
 │       └── permissions.ts         role to permission map
 │
-├── test/                          shared test harness and MSW
+├── test/                          shared test harness, fixtures validation, and MSW
+│   ├── contract-fixtures.test.ts  Phase 0 fixture conformance test (tests @contracts/fixtures)
 │   ├── renderWithProviders.tsx
 │   └── handlers.ts
 │
@@ -65,7 +61,7 @@ src/
 │   └── authStore.ts
 │
 ├── types/
-│   ├── generated/                 generated from src/contracts (NEVER hand-edited)
+│   ├── generated/                 mirrors repo-root contracts/schemas (read-only)
 │   │   ├── auth.ts, catalog.ts, common.ts, identity.ts
 │   │   ├── inventory.ts, purchasing.ts, sales.ts, index.ts
 │   │   └── tsconfig.json
@@ -99,8 +95,8 @@ Create subfolders only when you have a file to put in them. No empty folders.
 | A route, a protected route, a path constant | `routes/` |
 | A layout | `layouts/` |
 | A frontend-only type | `types/ui.ts`, or next to the component that uses it |
-| Contracts & OpenAPI spec (read-only) | `contracts/` (`openapi.erp.yaml`, `schemas/`, `fixtures/`) |
-| Generated API domain types (read-only) | `types/generated/` (mirroring backend contracts) |
+| Contracts & OpenAPI spec (read-only) | `../../contracts/` at repo root (accessed in app via `@contracts/*` alias) |
+| Generated API domain types (read-only) | `types/generated/` (mirroring repo-root contracts/schemas) |
 | A component or hook unit test | Next to the file it tests: `Name.test.tsx` |
 | Shared test harness & mock handlers | `test/renderWithProviders.tsx`, `test/handlers.ts` |
 | A Playwright E2E test | `tests/e2e/` at the repo root, outside the frontend app |
@@ -120,8 +116,8 @@ Each AI page lives in `features/ai/pages/`. The routes are plain react-router ro
 | `components/ui/`, `components/ai/`, `features/ai/` | Mahmoud |
 | `features/auth/` (login page) | Ahmed Salah |
 | `features/customers/` | **EXCLUDED FROM MVP** (Walk-in Cashier sales only; no customer CRM) |
-| `contracts/` | Canonical Backend Handover (Read-only System of Record) |
-| `types/generated/` | Generated via tooling, nobody edits it by hand |
+| `../../contracts/` (repo root) | Shared Monorepo Contracts (Read-only System of Record, multi-team) |
+| `types/generated/` | Mirrors repo-root contracts/schemas (read-only) |
  
 ## 4. Naming
  

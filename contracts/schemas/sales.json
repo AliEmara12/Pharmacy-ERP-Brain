@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Owner: erp-frontend",
   "$id": "https://example.com/contracts/schemas/sales.json",
   "title": "Pharmacy ERP — Sales Contract (Stage 2, BranchLocal runtime)",
   "description": "Cashier-only POS. Counterparty rules: the FE sends product identification + quantity ONLY. The server prices lines from PRODUCT_UOM.sale_unit_price + PRODUCT.tax_rate, allocates stock FEFO, computes totals/change, and derives return batch/location. Drafts NEVER reserve stock. Full CASH payment only. Corrections are returns — never invoice edits.",

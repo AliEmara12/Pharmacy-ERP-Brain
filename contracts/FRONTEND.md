@@ -1,3 +1,5 @@
+<!-- Owner: erp-frontend -->
+
 # Pharmacy ERP — Frontend ↔ Backend API Contracts (v1.0)
 
 Derived from `ERP-Backend-Blueprint-v1.1.md`. This package is the FE-side

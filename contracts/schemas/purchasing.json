@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Owner: erp-frontend",
   "$id": "https://example.com/contracts/schemas/purchasing.json",
   "title": "Pharmacy ERP — Purchasing Contract (Stage 3)",
   "description": "Suppliers (Cloud), POs (Cloud: create/approve/order; BranchLocal: receive/cancel-remaining), supplier payments (Cloud), vendor returns (BranchLocal). One-step receiving posts accepted units directly to the inventory ledger — there is NO separate goods-receipt module. Supplier payment is an order-level cash settlement, not an AP ledger.",

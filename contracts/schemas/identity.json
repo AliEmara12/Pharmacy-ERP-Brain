@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Owner: erp-frontend",
   "$id": "https://example.com/contracts/schemas/identity.json",
   "title": "Pharmacy ERP — Identity Contract (Stage 1)",
   "description": "Organization, Branch, Employee, UserAccount, branch enrollment. Every tenant-owned row carries organization_id derived from the authenticated context — never from a client field.",

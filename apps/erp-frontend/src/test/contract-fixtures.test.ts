@@ -1,3 +1,4 @@
+// Owner: erp-frontend
 import { describe, it, expect } from 'vitest';
 
 import type {
@@ -13,20 +14,20 @@ import type {
   VendorReturnDto,
   TokenPairResponse,
   CurrentUserContext,
-} from '../../types/generated';
+} from '../types/generated';
 
-import branchFixture from './branch.json';
-import organizationFixture from './organization.json';
-import productFixture from './product.json';
-import inventoryBalanceFixture from './inventory-balance.json';
-import salesOrderDraftFixture from './sales-order-draft.json';
-import salesInvoiceCompletedFixture from './sales-invoice-completed.json';
-import salesReturnFixture from './sales-return.json';
-import supplierFixture from './supplier.json';
-import purchaseOrderFixture from './purchase-order.json';
-import vendorReturnFixture from './vendor-return.json';
-import authTokenPairFixture from './auth-token-pair.json';
-import currentUserContextFixture from './current-user-context.json';
+import branchFixture from '@contracts/fixtures/branch.json';
+import organizationFixture from '@contracts/fixtures/organization.json';
+import productFixture from '@contracts/fixtures/product.json';
+import inventoryBalanceFixture from '@contracts/fixtures/inventory-balance.json';
+import salesOrderDraftFixture from '@contracts/fixtures/sales-order-draft.json';
+import salesInvoiceCompletedFixture from '@contracts/fixtures/sales-invoice-completed.json';
+import salesReturnFixture from '@contracts/fixtures/sales-return.json';
+import supplierFixture from '@contracts/fixtures/supplier.json';
+import purchaseOrderFixture from '@contracts/fixtures/purchase-order.json';
+import vendorReturnFixture from '@contracts/fixtures/vendor-return.json';
+import authTokenPairFixture from '@contracts/fixtures/auth-token-pair.json';
+import currentUserContextFixture from '@contracts/fixtures/current-user-context.json';
 
 describe('Phase 0 Contract Fixtures Type Conformance', () => {
   it('branch.json conforms to BranchDto', () => {

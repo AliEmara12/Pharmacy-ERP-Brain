@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Owner: erp-frontend",
   "$id": "https://example.com/contracts/schemas/inventory.json",
   "title": "Pharmacy ERP — Inventory Contract (Stage 1)",
   "description": "Locations, batches, balances, append-only ledger, adjustments. Balances are a projection; the ledger (INVENTORY_TXN + lines) is authoritative. FE never picks batch/location for returns — the server derives them from posted allocations. Initial stock is NEVER pushed by cloud; it is posted locally via OPENING_BALANCE.",

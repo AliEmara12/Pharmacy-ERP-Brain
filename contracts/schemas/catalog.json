@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Owner: erp-frontend",
   "$id": "https://example.com/contracts/schemas/catalog.json",
   "title": "Pharmacy ERP — Catalog Contract (Stage 1)",
   "description": "Categories, products, UOMs, reorder rules. UOM mutation is additive/item-level only (no full-list PUT, no hard delete — deactivate via is_active=false). Product tax_rate is fractional 0..1 and is the authoritative POS price/tax source.",
