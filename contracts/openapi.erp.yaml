@@ -20,9 +20,10 @@
 #  - Server is authoritative for: prices, tax rates, totals, change due,
 #    inventory availability, allocation (FEFO), state transitions.
 #    FE-supplied totals are informational only.
-#  - Runtime ownership: endpoints tagged x-runtime Cloud or BranchLocal.
-#    Asking a runtime for a route it does not own returns 404/405 — the FE must
-#    treat the route table below as runtime-qualified.
+#  - Runtime ownership: endpoints tagged x-runtime Cloud | BranchLocal | Both.
+#    "Both" = served by either runtime (shared Stage-1 surface). Asking a
+#    runtime for a route it does not own returns 404/405 — the FE must treat
+#    the route table below as runtime-qualified.
 #  - Each operation is annotated x-stage: 1|2|3 (cumulative release stages).
 # =============================================================================
 openapi: 3.0.3
@@ -93,6 +94,10 @@ paths:
               schema: { $ref: "#/components/schemas/LoginResponse" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /auth/refresh:
     post:
@@ -117,6 +122,10 @@ paths:
               schema: { $ref: "#/components/schemas/TokenPairResponse" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /auth/logout:
     post:
@@ -133,6 +142,10 @@ paths:
       responses:
         "204": { description: Family revoked }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /auth/me:
     get:
@@ -148,6 +161,31 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CurrentUserContextDto" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
+
+  /.well-known/jwks.json:
+    get:
+      tags: [Auth]
+      operationId: getJwks
+      summary: Public JWKS (RS256) for access-token signature validation
+      description: |
+        JSON Web Key Set of RS256 public signing keys (kid-keyed). Served at
+        the API host root, outside the /api/v1 base path. The FE validates
+        access tokens against these keys locally.
+      security: []
+      x-runtime: Both
+      x-stage: 1
+      responses:
+        "200":
+          description: Active RS256 public keys
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JwksResponse" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   # ===========================================================================
   # ORGANIZATION (Stage 1)
@@ -177,6 +215,10 @@ paths:
               schema: { $ref: "#/components/schemas/OrganizationSetupResultDto" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Cloud
+      x-stage: 1
 
   # ===========================================================================
   # BRANCHES (Stage 1)
@@ -200,6 +242,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/PagedBranchDto"
         "403": { $ref: "#/components/responses/ForbiddenBranch" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     post:
       tags: [Branch]
       operationId: createBranch
@@ -222,6 +268,10 @@ paths:
         "403": { $ref: "#/components/responses/ForbiddenBranch" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /branches/{branchId}:
     parameters:
@@ -229,6 +279,7 @@ paths:
     get:
       tags: [Branch]
       operationId: getBranch
+      summary: Branch detail (organization-scoped)
       security:
         - bearerAuth: []
       responses:
@@ -238,9 +289,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/BranchDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     patch:
       tags: [Branch]
       operationId: patchBranch
+      summary: Update branch name/timezone (Admin only)
       security:
         - bearerAuth: []
       parameters:
@@ -258,6 +314,10 @@ paths:
               schema: { $ref: "#/components/schemas/BranchDto" }
         "403": { $ref: "#/components/responses/ForbiddenBranch" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /branches/{branchId}/enrollment-tokens:
     post:
@@ -276,6 +336,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EnrollmentTokenDto" }
         "403": { $ref: "#/components/responses/ForbiddenBranch" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /branch-enrollment:
     post:
@@ -302,6 +366,9 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "410": { description: Token expired or already used }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-stage: 1
 
   # ===========================================================================
   # USERS (Stage 1, Admin-only)
@@ -323,6 +390,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PagedUserDto" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     post:
       tags: [Users]
       operationId: createUser
@@ -344,6 +415,10 @@ paths:
               schema: { $ref: "#/components/schemas/UserDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /users/{userId}:
     parameters:
@@ -361,6 +436,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     patch:
       tags: [Users]
       operationId: patchUser
@@ -381,6 +460,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /users/{userId}/password-reset:
     post:
@@ -401,6 +484,10 @@ paths:
         "204": { description: Password reset }
         "422": { $ref: "#/components/responses/ValidationError" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /users/{userId}/revoke-sessions:
     post:
@@ -415,6 +502,10 @@ paths:
       responses:
         "204": { description: Sessions revoked }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   # ===========================================================================
   # EMPLOYEES (Stage 1)
@@ -423,6 +514,7 @@ paths:
     get:
       tags: [Employees]
       operationId: listEmployees
+      summary: List employees (branch-scoped)
       security:
         - bearerAuth: []
       parameters:
@@ -435,9 +527,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedEmployeeDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     post:
       tags: [Employees]
       operationId: createEmployee
+      summary: Create employee (Admin only)
       security:
         - bearerAuth: []
       parameters:
@@ -454,6 +551,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EmployeeDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /employees/{employeeId}:
     parameters:
@@ -461,6 +562,7 @@ paths:
     get:
       tags: [Employees]
       operationId: getEmployee
+      summary: Get employee detail
       security:
         - bearerAuth: []
       responses:
@@ -470,9 +572,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EmployeeDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     patch:
       tags: [Employees]
       operationId: patchEmployee
+      summary: Update employee (Admin only)
       security:
         - bearerAuth: []
       parameters:
@@ -489,6 +596,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/EmployeeDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   # ===========================================================================
   # PRODUCT CATEGORIES (Stage 1)
@@ -497,6 +608,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: listProductCategories
+      summary: List product categories (tree via parent_category_id)
       security:
         - bearerAuth: []
       parameters:
@@ -509,9 +621,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedProductCategoryDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     post:
       tags: [Catalog]
       operationId: createProductCategory
+      summary: Create product category
       security:
         - bearerAuth: []
       parameters:
@@ -529,6 +646,10 @@ paths:
               schema: { $ref: "#/components/schemas/ProductCategoryDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /product-categories/{categoryId}:
     parameters:
@@ -536,6 +657,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: getProductCategory
+      summary: Get product category detail
       security:
         - bearerAuth: []
       responses:
@@ -545,9 +667,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProductCategoryDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     patch:
       tags: [Catalog]
       operationId: patchProductCategory
+      summary: Update product category
       security:
         - bearerAuth: []
       parameters:
@@ -564,6 +691,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProductCategoryDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   # ===========================================================================
   # PRODUCTS (Stage 1)
@@ -572,6 +703,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: listProducts
+      summary: Search/list products (SKU / barcode / name)
       security:
         - bearerAuth: []
       parameters:
@@ -591,9 +723,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedProductDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     post:
       tags: [Catalog]
       operationId: createProduct
+      summary: Create product with initial base UOM
       security:
         - bearerAuth: []
       parameters:
@@ -611,6 +748,10 @@ paths:
               schema: { $ref: "#/components/schemas/ProductDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /products/{productId}:
     parameters:
@@ -618,6 +759,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: getProduct
+      summary: Get product detail incl. UOMs
       security:
         - bearerAuth: []
       responses:
@@ -627,9 +769,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProductDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     patch:
       tags: [Catalog]
       operationId: patchProduct
+      summary: Update product
       security:
         - bearerAuth: []
       parameters:
@@ -646,6 +793,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProductDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /products/{productId}/uoms:
     parameters:
@@ -653,6 +804,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: listProductUoms
+      summary: List product UOMs (incl. inactive)
       security:
         - bearerAuth: []
       responses:
@@ -663,6 +815,10 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ProductUomDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     post:
       tags: [Catalog]
       operationId: createProductUom
@@ -684,6 +840,10 @@ paths:
               schema: { $ref: "#/components/schemas/ProductUomDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /products/{productId}/uoms/{uomId}:
     parameters:
@@ -714,6 +874,10 @@ paths:
               schema: { $ref: "#/components/schemas/ProductUomDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /branches/{branchId}/products/{productId}/reorder-rule:
     parameters:
@@ -722,6 +886,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: getReorderRule
+      summary: Get branch reorder rule (or null if none)
       security:
         - bearerAuth: []
       responses:
@@ -735,6 +900,10 @@ paths:
                 properties:
                   rule: { $ref: "#/components/schemas/ReorderRuleDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     put:
       tags: [Catalog]
       operationId: putReorderRule
@@ -755,6 +924,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ReorderRuleDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   # ===========================================================================
   # INVENTORY (Stage 1)
@@ -763,6 +936,7 @@ paths:
     get:
       tags: [Inventory]
       operationId: listInventoryLocations
+      summary: List inventory locations (branch-scoped)
       security:
         - bearerAuth: []
       parameters:
@@ -779,9 +953,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedInventoryLocationDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     post:
       tags: [Inventory]
       operationId: createInventoryLocation
+      summary: Create inventory location
       security:
         - bearerAuth: []
       parameters:
@@ -798,6 +977,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/InventoryLocationDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /inventory/locations/{locationId}:
     parameters:
@@ -805,6 +988,7 @@ paths:
     get:
       tags: [Inventory]
       operationId: getInventoryLocation
+      summary: Get inventory location detail
       security:
         - bearerAuth: []
       responses:
@@ -814,9 +998,14 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/InventoryLocationDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     patch:
       tags: [Inventory]
       operationId: patchInventoryLocation
+      summary: Update inventory location
       security:
         - bearerAuth: []
       parameters:
@@ -833,6 +1022,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/InventoryLocationDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /inventory/batches:
     get:
@@ -857,6 +1050,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedInventoryBatchDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /inventory/balances:
     get:
@@ -884,6 +1081,10 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedInventoryBalanceDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /inventory/transactions:
     get:
@@ -914,11 +1115,16 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedInventoryTxnDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /inventory/transactions/{txnId}:
     get:
       tags: [Inventory]
       operationId: getInventoryTransaction
+      summary: Get ledger transaction detail
       security:
         - bearerAuth: []
       parameters:
@@ -930,6 +1136,10 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/InventoryTxnDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /inventory/adjustments:
     post:
@@ -957,6 +1167,10 @@ paths:
               schema: { $ref: "#/components/schemas/InventoryTxnDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /inventory/adjustments/{txnId}:
     parameters:
@@ -982,6 +1196,10 @@ paths:
               schema: { $ref: "#/components/schemas/InventoryTxnDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
     post:
       tags: [Inventory]
       operationId: postOrReverseInventoryAdjustment
@@ -1006,6 +1224,10 @@ paths:
               schema: { $ref: "#/components/schemas/InventoryTxnDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   /inventory/adjustments/{txnId}/cancel:
     post:
@@ -1020,6 +1242,10 @@ paths:
       responses:
         "204": { description: Draft cancelled }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
+      x-runtime: Both
+      x-stage: 1
 
   # ===========================================================================
   # SALES ORDERS (Stage 2, BranchLocal)
@@ -1048,9 +1274,12 @@ paths:
               schema: { $ref: "#/components/schemas/SalesOrderDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
     get:
       tags: [Sales]
       operationId: listSalesOrders
+      summary: List sales orders (branch-scoped)
       x-runtime: BranchLocal
       x-stage: 2
       security:
@@ -1074,11 +1303,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedSalesOrderDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /sales-orders/{salesOrderId}:
     get:
       tags: [Sales]
       operationId: getSalesOrder
+      summary: Get sales order detail
       x-runtime: BranchLocal
       x-stage: 2
       security:
@@ -1092,6 +1324,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SalesOrderDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /sales-orders/{salesOrderId}/lines:
     put:
@@ -1118,6 +1352,8 @@ paths:
               schema: { $ref: "#/components/schemas/SalesOrderDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /sales-orders/{salesOrderId}/complete:
     post:
@@ -1151,6 +1387,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ApiError" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /sales-orders/{salesOrderId}/cancel:
     post:
@@ -1167,6 +1405,8 @@ paths:
       responses:
         "204": { description: Draft cancelled }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   # ===========================================================================
   # SALES INVOICES (Stage 2, BranchLocal)
@@ -1175,6 +1415,7 @@ paths:
     get:
       tags: [Sales]
       operationId: listSalesInvoices
+      summary: List sales invoices (branch-scoped)
       x-runtime: BranchLocal
       x-stage: 2
       security:
@@ -1198,6 +1439,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedSalesInvoiceDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /sales-invoices/{invoiceId}:
     get:
@@ -1217,6 +1460,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SalesInvoiceDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   # ===========================================================================
   # SALES RETURNS + REFUNDS (Stage 2, BranchLocal)
@@ -1254,9 +1499,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
     get:
       tags: [Sales]
       operationId: listSalesReturns
+      summary: List sales returns (branch-scoped)
       x-runtime: BranchLocal
       x-stage: 2
       security:
@@ -1280,11 +1528,14 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedSalesReturnDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /sales-returns/{returnId}:
     get:
       tags: [Sales]
       operationId: getSalesReturn
+      summary: Get sales return detail
       x-runtime: BranchLocal
       x-stage: 2
       security:
@@ -1298,6 +1549,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SalesReturnDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   # ===========================================================================
   # SUPPLIERS (Stage 3, Cloud)
@@ -1306,6 +1559,7 @@ paths:
     get:
       tags: [Purchasing]
       operationId: listSuppliers
+      summary: List suppliers
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1320,9 +1574,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedSupplierDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
     post:
       tags: [Purchasing]
       operationId: createSupplier
+      summary: Create supplier
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1342,6 +1599,8 @@ paths:
               schema: { $ref: "#/components/schemas/SupplierDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /suppliers/{supplierId}:
     parameters:
@@ -1349,6 +1608,7 @@ paths:
     get:
       tags: [Purchasing]
       operationId: getSupplier
+      summary: Get supplier detail
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1360,9 +1620,12 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SupplierDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
     patch:
       tags: [Purchasing]
       operationId: patchSupplier
+      summary: Update supplier
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1381,6 +1644,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SupplierDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /suppliers/{supplierId}/status:
     patch:
@@ -1406,6 +1671,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SupplierDto" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   # ===========================================================================
   # PURCHASE ORDERS (Stage 3, Cloud + BranchLocal for receive)
@@ -1437,9 +1704,12 @@ paths:
               schema: { $ref: "#/components/schemas/PurchaseOrderDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
     get:
       tags: [Purchasing]
       operationId: listPurchaseOrders
+      summary: List purchase orders (branch-scoped)
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1466,6 +1736,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedPurchaseOrderDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /purchase-orders/{purchaseOrderId}:
     parameters:
@@ -1473,6 +1745,7 @@ paths:
     get:
       tags: [Purchasing]
       operationId: getPurchaseOrder
+      summary: Get purchase order detail
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1484,6 +1757,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PurchaseOrderDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
     patch:
       tags: [Purchasing]
       operationId: patchPurchaseOrder
@@ -1507,6 +1782,8 @@ paths:
               schema: { $ref: "#/components/schemas/PurchaseOrderDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
     post:
       tags: [Purchasing]
       operationId: cancelPurchaseOrder
@@ -1532,6 +1809,8 @@ paths:
               schema: { $ref: "#/components/schemas/PurchaseOrderDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /purchase-orders/{purchaseOrderId}/approve:
     post:
@@ -1552,6 +1831,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PurchaseOrderDto" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /purchase-orders/{purchaseOrderId}/order:
     post:
@@ -1577,6 +1858,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PurchaseOrderDto" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /purchase-orders/{purchaseOrderId}/receive:
     post:
@@ -1613,6 +1896,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ApiError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /purchase-orders/{purchaseOrderId}/cancel-remaining:
     post:
@@ -1642,6 +1927,8 @@ paths:
               schema: { $ref: "#/components/schemas/PurchaseOrderDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   # ===========================================================================
   # SUPPLIER PAYMENTS (Stage 3, Cloud)
@@ -1674,11 +1961,14 @@ paths:
               schema: { $ref: "#/components/schemas/SupplierPaymentDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /supplier-payments/{supplierPaymentId}:
     get:
       tags: [Purchasing]
       operationId: getSupplierPayment
+      summary: Get supplier payment detail
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1692,6 +1982,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SupplierPaymentDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   # ===========================================================================
   # VENDOR RETURNS (Stage 3)
@@ -1700,6 +1992,7 @@ paths:
     get:
       tags: [Purchasing]
       operationId: listVendorReturns
+      summary: List vendor returns (branch-scoped)
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1717,6 +2010,8 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PagedVendorReturnDto" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
     post:
       tags: [Purchasing]
       operationId: createVendorReturn
@@ -1739,6 +2034,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VendorReturnDto" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /vendor-returns/{vendorReturnId}:
     parameters:
@@ -1746,6 +2043,7 @@ paths:
     get:
       tags: [Purchasing]
       operationId: getVendorReturn
+      summary: Get vendor return detail
       x-runtime: Cloud
       x-stage: 3
       security:
@@ -1757,6 +2055,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VendorReturnDto" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /vendor-returns/{vendorReturnId}/cancel:
     parameters:
@@ -1778,6 +2078,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/VendorReturnDto" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   /vendor-returns/{vendorReturnId}/post:
     parameters:
@@ -1803,6 +2105,8 @@ paths:
               schema: { $ref: "#/components/schemas/VendorReturnDto" }
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/ValidationError" }
+        "400": { $ref: "#/components/responses/MalformedRequest" }
+        "500": { $ref: "#/components/responses/InternalError" }
 
   # ===========================================================================
   # NOTES ON NON-FRONTEND ENDPOINTS (excluded from this contract):
@@ -1827,7 +2131,8 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: User JWT (RS256, JWKS-validated). Claims: sub, roles,
+      description: >-
+        User JWT (RS256, JWKS-validated). Claims: sub, roles,
         organization_id, branch_scope, branch_ids, scopes.
     platformProvisioner:
       type: http
@@ -1997,6 +2302,16 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ApiError" }
+    MalformedRequest:
+      description: Malformed or unparseable request (MALFORMED_REQUEST)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
+    InternalError:
+      description: Unexpected server error (INTERNAL_ERROR)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ApiError" }
 
   # ===========================================================================
   # SCHEMAS
@@ -2013,7 +2328,7 @@ components:
         Serialized as plain decimal string to preserve numeric(18,2) precision
         exactly. Never use IEEE-754 floats for money on FE if you want to avoid
         drift; treat this as a fixed-2-decimal string.
-      examples: ["1250.00", "-99.50", "0.00"]
+      example: "1250.00"
 
     Numeric4:
       type: string
@@ -2113,7 +2428,7 @@ components:
               items:
                 type: object
                 properties:
-                  field: { type: string, description: JSON path e.g. "lines[0].quantity" }
+                  field: { type: string, description: 'JSON path e.g. "lines[0].quantity"' }
                   issue: { type: string }
             trace_id:
               type: string
@@ -2131,6 +2446,26 @@ components:
           type: string
           description: Opaque; null means end of results. Use nextCursor in next
             call's `cursor` query param.
+
+    # -------------------------------------------------------------------------
+    # JWKS
+    # -------------------------------------------------------------------------
+    JwksResponse:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            required: [kty, kid, use, alg, n, e]
+            properties:
+              kty: { type: string, enum: [RSA] }
+              kid: { type: string }
+              use: { type: string, enum: [sig] }
+              alg: { type: string, enum: [RS256] }
+              n: { type: string, description: Base64url-encoded RSA modulus }
+              e: { type: string, description: Base64url-encoded RSA public exponent }
 
     # -------------------------------------------------------------------------
     # Auth
@@ -2187,7 +2522,6 @@ components:
 
     LogoutRequest:
       type: object
-      required: [refresh_token]
       properties:
         refresh_token: { type: string, nullable: true }
 
@@ -2378,6 +2712,7 @@ components:
 
     UserDto:
       type: object
+      required: [user_id, employee_id, username, role, branch_scope, is_active]
       properties:
         user_id: { $ref: "#/components/schemas/Uuid" }
         employee_id: { $ref: "#/components/schemas/Uuid", nullable: true }
@@ -2470,7 +2805,7 @@ components:
         uom_code: { type: string, maxLength: 20 }
         display_name: { type: string, maxLength: 50 }
         conversion_to_base: { $ref: "#/components/schemas/Numeric6" }
-        sale_unit_price: { $ref: "#/components/schemas/Numeric4", nullable: true }
+        sale_unit_price: { $ref: "#/components/schemas/Numeric4", description: "Required (non-null, >= 0) when is_sellable=true; the authoritative POS sale price." }
         is_base: { type: boolean }
         is_sellable: { type: boolean }
         is_purchasable: { type: boolean }
@@ -2630,7 +2965,7 @@ components:
       properties:
         batch_id: { $ref: "#/components/schemas/Uuid", description: Deterministic UUIDv5; identical across branches }
         product_id: { $ref: "#/components/schemas/Uuid" }
-        batch_number: { type: string, maxLength: 80, description: Exact, case-sensitive }
+        batch_number: { type: string, maxLength: 80, description: "Exact, case-sensitive" }
         manufactured_on: { type: string, format: date, nullable: true }
         expires_on: { type: string, format: date, nullable: true }
         quality_status: { $ref: "#/components/schemas/BatchQualityStatus" }
@@ -2735,9 +3070,6 @@ components:
           $ref: "#/components/schemas/Uuid"
           nullable: true
           description: Required when transaction_type=REVERSAL.
-        location_id_override:
-          $ref: "#/components/schemas/Uuid"
-          nullable: true
         lines:
           type: array
           minItems: 1
@@ -2751,9 +3083,8 @@ components:
         location_id: { $ref: "#/components/schemas/Uuid" }
         batch_id:
           $ref: "#/components/schemas/Uuid"
-          description: "
+          description: >-
             For non-lot-tracked products use the system NON-LOT batch row.
-          "
         product_uom_id:
           $ref: "#/components/schemas/Uuid"
           description: Typically the product's base UOM; conversion must be >0.
@@ -2987,7 +3318,7 @@ components:
 
     SalesReturnRequest:
       type: object
-      required: [invoice_id, reason_code, lines, disposition]
+      required: [invoice_id, reason_code, lines]
       properties:
         invoice_id: { $ref: "#/components/schemas/Uuid" }
         reason_code: { type: string, maxLength: 40 }
@@ -3092,7 +3423,7 @@ components:
         discount_amount: { $ref: "#/components/schemas/Money" }
         tax_rate_snapshot: { $ref: "#/components/schemas/TaxRate" }
         tax_amount: { $ref: "#/components/schemas/Money" }
-        line_total: { $ref: "#/components/schemas/Money", description: line net, tax-exclusive }
+        line_total: { $ref: "#/components/schemas/Money", description: "line net, tax-exclusive" }
         allocated_additional_cost: { $ref: "#/components/schemas/Money" }
         min_remaining_shelf_days: { type: integer, minimum: 0, default: 90 }
 
@@ -3145,8 +3476,7 @@ components:
         expected_on: { type: string, format: date, nullable: true }
         currency_code: { type: string, description: must equal organization base_currency }
         additional_costs:
-          type: string
-          description: optional header additional cost to be pro-rata allocated at create
+          description: Optional header additional cost, pro-rata allocated to lines at creation.
           $ref: "#/components/schemas/Money"
         lines:
           type: array
@@ -3199,7 +3529,7 @@ components:
 
     ReceiveLineRequest:
       type: object
-      required: [po_line_id, product_id, product_uom_id, received_qty_base]
+      required: [po_line_id, product_id, product_uom_id, received_qty_base, accepted_qty_base, batch_number]
       description: |
         received_qty_base = accepted_qty_base + rejected_qty_base
         accepted quantity accumulates to PO received_qty_base; rejected
@@ -3235,7 +3565,6 @@ components:
               rejected_qty_base: { $ref: "#/components/schemas/Numeric4" }
               remaining_qty_base: { $ref: "#/components/schemas/Numeric4" }
               batch_id: { $ref: "#/components/schemas/Uuid" }
-              created_at: { $ref: "#/components/schemas/Timestamp" }
         trace_id: { type: string }
 
     RecordSupplierPaymentRequest:
@@ -3247,7 +3576,7 @@ components:
       properties:
         supplier_id: { $ref: "#/components/schemas/Uuid" }
         purchase_order_id: { $ref: "#/components/schemas/Uuid" }
-        amount: { $ref: "#/components/schemas/Money", description: >0 and <= outstanding }
+        amount: { $ref: "#/components/schemas/Money", description: ">0 and <= outstanding" }
         currency_code: { type: string }
         method: { type: string, enum: [CASH] }
         payment_reference: { type: string, nullable: true, maxLength: 100 }
@@ -3282,7 +3611,7 @@ components:
         product_id: { $ref: "#/components/schemas/Uuid" }
         batch_id: { $ref: "#/components/schemas/Uuid" }
         location_id: { $ref: "#/components/schemas/Uuid" }
-        quantity_base: { $ref: "#/components/schemas/Numeric4", description: >0 }
+        quantity_base: { $ref: "#/components/schemas/Numeric4", description: ">0" }
         unit_cost_snapshot: { $ref: "#/components/schemas/Numeric4" }
         reason_code: { type: string, nullable: true, maxLength: 40 }
 

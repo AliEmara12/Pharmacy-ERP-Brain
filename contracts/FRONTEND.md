@@ -9,12 +9,23 @@ counterpart of the backend's Phase-0 "Contracts & Mocks" deliverable.
 
 | Path | Contents |
 |---|---|
-| `openapi.erp.yaml` | Master OpenAPI 3.0.3 — 55 paths / 78 operations, all FE-facing ERP routes, Stages 1+2+3, with `x-runtime` and `x-stage` annotations |
+| `openapi.erp.yaml` | Master OpenAPI 3.0.3 — 56 paths / 79 operations, all FE-facing ERP routes, Stages 1+2+3, with `x-runtime` (`Cloud`/`BranchLocal`/`Both`) and `x-stage` (`1`/`2`/`3`) on every operation |
 | `schemas/*.json` | Standalone JSON Schema (draft 2020-12) DTO definitions: `common`, `auth`, `identity`, `catalog`, `inventory`, `sales`, `purchasing` |
-| `types/*.ts` | Strict TypeScript domain types mirroring the schemas (compile-verified) |
+| *generated types* | Generated client types are emitted to `apps/erp-frontend/src/types/generated` — **NOT** stored in this package (there is no `contracts/types/`) |
 
 Validation status: every `$ref` resolves, sizes/precision conventions checked,
 `tsc --strict` clean.
+
+## Client type generation
+
+Client types are generated from this package and written to
+`apps/erp-frontend/src/types/generated` (never `contracts/types/`).
+
+- **Source of truth:** `schemas/*.json` (entity/DTO shapes) + `openapi.erp.yaml`
+  (endpoint paths, request/response bodies, parameters).
+- **Never hand-write** a DTO type that already exists in these contracts.
+- If a shape is missing or wrong, fix it in the contract and regenerate — do not
+  patch the generated output.
 
 ---
 
