@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "format": "prettier --write .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "codegen:paths": "openapi-typescript ../../contracts/openapi.erp.yaml -o src/types/generated/api-paths.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -47,6 +48,7 @@
     "jsdom": "^30.1.2",
     "json-schema-to-typescript": "^15.0.4",
     "msw": "^2.15.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "~6.0.2",

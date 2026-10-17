@@ -46,9 +46,23 @@ import type {
   VendorReturnDto,
   VendorReturnLineDto,
   PurchaseReceiptResult,
+  // OpenAPI Endpoint & Operation Types
+  paths,
+  operations,
+  components,
+  // Roles & Permissions (strictly Admin | Pharmacist | Cashier)
+  Role,
+  PermissionScope,
 } from './generated';
 
+// OpenAPI Contract Top-Level Type Aliases
+export type ApiPaths = paths;
+export type ApiOperations = operations;
+export type ApiComponents = components;
+
 // Shorter, ergonomic aliases for frontend screens
+export type UserRole = Role;
+export type UserPermission = PermissionScope;
 export type CurrentUser = CurrentUserContext;
 export type TokenPair = TokenPairResponse;
 export type AuthCredentials = LoginRequest;

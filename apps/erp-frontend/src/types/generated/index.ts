@@ -12,3 +12,4 @@ export * from './catalog';
 export * from './inventory';
 export * from './sales';
 export * from './purchasing';
+export * from './api-paths';

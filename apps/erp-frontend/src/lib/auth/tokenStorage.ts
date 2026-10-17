@@ -3,13 +3,14 @@
  *
  * The single authority for reading and writing auth tokens to browser storage.
  * Follows STRUCTURE.md: lib/auth/tokenStorage.ts is the only file that touches storage.
- * Includes in-memory fallback for SSR/Node/test environments where window.localStorage is unavailable.
+ * Uses sessionStorage (destroyed on tab close) to enforce security in shared-device POS environments.
+ * Includes in-memory fallback for SSR/Node/test environments where window.sessionStorage is unavailable.
  */
 
 const ACCESS_TOKEN_KEY = 'erp_access_token';
 const REFRESH_TOKEN_KEY = 'erp_refresh_token';
 
-// In-memory fallback for environments without localStorage (e.g. Node test runners)
+// In-memory fallback for environments without sessionStorage (e.g. Node test runners)
 const inMemoryStore = new Map<string, string>();
 
 const getStorage = (): {
@@ -19,9 +20,9 @@ const getStorage = (): {
 } => {
   if (
     typeof window !== 'undefined' &&
-    typeof window.localStorage !== 'undefined'
+    typeof window.sessionStorage !== 'undefined'
   ) {
-    return window.localStorage;
+    return window.sessionStorage;
   }
   return {
     getItem: (key: string) => inMemoryStore.get(key) ?? null,
