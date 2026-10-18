@@ -4,7 +4,9 @@
     "\\.github",
     "\\apps",
     "\\apps\\erp-backend",
-    "\\apps\\erp-backend\\src"
+    "\\apps\\erp-backend\\src",
+    "\\apps\\erp-backend\\src\\PharmacyERP.Domain",
+    "\\apps\\erp-backend\\src\\PharmacyERP.Domain\\Entities"
   ],
   "PreviewInSolutionExplorer": false
 }
