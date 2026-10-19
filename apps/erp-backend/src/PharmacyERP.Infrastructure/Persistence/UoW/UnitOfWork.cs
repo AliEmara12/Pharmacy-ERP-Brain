@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore.Storage;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using PharmacyERP.Application.Common.Interfaces.Context;
 using PharmacyERP.Application.Common.Interfaces.Persistence;
 using PharmacyERP.Infrastructure.Persistence.Database;
 
@@ -7,27 +9,36 @@ namespace PharmacyERP.Infrastructure.Persistence.UoW;
 public class UnitOfWork : IUnitOfWork
 {
     private readonly PharmacyDbContext _dbContext;
+    private readonly ITenantContext _tenantContext;
     private IDbContextTransaction? _currentTransaction;
 
-    public bool HasActiveTransaction => _currentTransaction != null;
-
-    public UnitOfWork(PharmacyDbContext dbContext)
+    public UnitOfWork(PharmacyDbContext dbContext, ITenantContext tenantContext)
     {
         _dbContext = dbContext;
+        _tenantContext = tenantContext;
     }
+
+    public bool HasActiveTransaction => _currentTransaction != null;
 
     public async Task BeginTransactionAsync(CancellationToken ct = default)
     {
         if (_currentTransaction != null)
-            throw new InvalidOperationException("A transaction is already in progress.");
+            throw new InvalidOperationException("A transaction is already active in this UnitOfWork.");
 
         _currentTransaction = await _dbContext.Database.BeginTransactionAsync(ct);
+
+        if (_tenantContext.IsTenantBound && _tenantContext.OrganizationId.HasValue && _dbContext.Database.IsRelational())
+        {
+            var orgId = _tenantContext.OrganizationId.Value.ToString();
+            await _dbContext.Database.ExecuteSqlRawAsync(
+                "SELECT set_config('app.organization_id', {0}, true);",
+                new object[] { orgId },
+                ct);
+        }
     }
 
-    public async Task<int> SaveChangesAsync(CancellationToken ct = default)
-    {
-        return await _dbContext.SaveChangesAsync(ct);
-    }
+    public Task<int> SaveChangesAsync(CancellationToken ct = default)
+        => _dbContext.SaveChangesAsync(ct);
 
     public async Task CommitTransactionAsync(CancellationToken ct = default)
     {
@@ -36,12 +47,13 @@ public class UnitOfWork : IUnitOfWork
 
         try
         {
-            await SaveChangesAsync(ct);
+            await _dbContext.SaveChangesAsync(ct);
             await _currentTransaction.CommitAsync(ct);
         }
         finally
         {
-            await DisposeTransactionAsync();
+            await _currentTransaction.DisposeAsync();
+            _currentTransaction = null;
         }
     }
 
@@ -55,14 +67,6 @@ public class UnitOfWork : IUnitOfWork
         }
         finally
         {
-            await DisposeTransactionAsync();
-        }
-    }
-
-    private async Task DisposeTransactionAsync()
-    {
-        if (_currentTransaction != null)
-        {
             await _currentTransaction.DisposeAsync();
             _currentTransaction = null;
         }
@@ -71,13 +75,11 @@ public class UnitOfWork : IUnitOfWork
     public void Dispose()
     {
         _currentTransaction?.Dispose();
-        _dbContext.Dispose();
     }
 
     public async ValueTask DisposeAsync()
     {
         if (_currentTransaction != null)
             await _currentTransaction.DisposeAsync();
-        await _dbContext.DisposeAsync();
     }
 }

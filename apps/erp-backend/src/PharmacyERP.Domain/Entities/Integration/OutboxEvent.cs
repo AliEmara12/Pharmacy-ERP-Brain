@@ -1,4 +1,6 @@
-﻿namespace PharmacyERP.Domain.Entities.Integration;
+﻿using PharmacyERP.Domain.Exceptions;
+
+namespace PharmacyERP.Domain.Entities.Integration;
 
 public class OutboxEvent
 {
@@ -19,6 +21,11 @@ public class OutboxEvent
 
     public OutboxEvent(Guid eventId, Guid organizationId, Guid? branchId, long eventSequence, string eventType, string payload, string traceId)
     {
+        if (eventSequence <= 0) throw new IntegrationDomainException("EventSequence must be greater than zero.");
+        if (string.IsNullOrWhiteSpace(eventType)) throw new IntegrationDomainException("EventType is required.");
+        if (string.IsNullOrWhiteSpace(payload)) throw new IntegrationDomainException("Payload is required.");
+        if (string.IsNullOrWhiteSpace(traceId)) throw new IntegrationDomainException("TraceId is required.");
+
         EventId = eventId;
         OrganizationId = organizationId;
         BranchId = branchId;

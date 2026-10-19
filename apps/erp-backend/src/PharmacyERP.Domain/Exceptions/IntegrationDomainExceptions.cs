@@ -1,12 +1,10 @@
-﻿
-namespace PharmacyERP.Domain.Exceptions;
+﻿namespace PharmacyERP.Domain.Exceptions;
 
 public abstract class DomainException : Exception
 {
-    protected DomainException(string message) : base(message)
-    {
-    }
+    protected DomainException(string message) : base(message) { }
 }
+
 public class IntegrationDomainException : DomainException
 {
     public IntegrationDomainException(string message) : base(message) { }
@@ -15,15 +13,11 @@ public class IntegrationDomainException : DomainException
 public class InvalidIdempotencyHashException : IntegrationDomainException
 {
     public InvalidIdempotencyHashException(string hash)
-        : base($"Invalid payload hash '{hash}'. The payload hash must be exactly 64 characters (SHA-256 Hex string).")
-    {
-    }
+        : base($"Invalid payload hash '{hash}'. Must be exactly 64 hex characters.") { }
 }
 
 public class MissingSourcePromptIdException : IntegrationDomainException
 {
     public MissingSourcePromptIdException()
-        : base("SourcePromptId is strictly required when the ActorType is AI_ASSISTED. AI actions must be traceable to their source prompt.")
-    {
-    }
+        : base("Both ActorUserId and SourcePromptId are strictly required when ActorType is AI_ASSISTED.") { }
 }

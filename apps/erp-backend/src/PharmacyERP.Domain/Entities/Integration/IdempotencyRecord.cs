@@ -19,6 +19,9 @@ public class IdempotencyRecord
     {
         if (string.IsNullOrWhiteSpace(payloadHash) || payloadHash.Length != 64)
             throw new InvalidIdempotencyHashException(payloadHash ?? "null");
+        if (string.IsNullOrWhiteSpace(operationScope)) throw new IntegrationDomainException("OperationScope is required.");
+        if (string.IsNullOrWhiteSpace(idempotencyKey)) throw new IntegrationDomainException("IdempotencyKey is required.");
+        if (string.IsNullOrWhiteSpace(responseBody)) throw new IntegrationDomainException("ResponseBody is required.");
 
         IdempotencyRecordId = Guid.NewGuid();
         OrganizationId = organizationId;

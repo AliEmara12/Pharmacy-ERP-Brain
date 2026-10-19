@@ -27,8 +27,12 @@ public class AuditLog
                     string action, string entitySchema, string entityName, Guid entityId,
                     string? beforeData, string? afterData, string traceId, string? sourcePromptId = null)
     {
-        if (actorType == AuditActorType.AI_ASSISTED && string.IsNullOrWhiteSpace(sourcePromptId))
+        if (actorType == AuditActorType.AI_ASSISTED && (actorUserId == null || string.IsNullOrWhiteSpace(sourcePromptId)))
             throw new MissingSourcePromptIdException();
+        if (string.IsNullOrWhiteSpace(action)) throw new IntegrationDomainException("Action is required.");
+        if (string.IsNullOrWhiteSpace(entitySchema)) throw new IntegrationDomainException("EntitySchema is required.");
+        if (string.IsNullOrWhiteSpace(entityName)) throw new IntegrationDomainException("EntityName is required.");
+        if (string.IsNullOrWhiteSpace(traceId)) throw new IntegrationDomainException("TraceId is required.");
 
         AuditLogId = Guid.NewGuid();
         OrganizationId = organizationId;
