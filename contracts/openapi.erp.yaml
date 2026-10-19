@@ -2762,6 +2762,7 @@ components:
               description: Field-level issues (presence optional).
               items:
                 type: object
+                required: [issue]
                 properties:
                   field: { type: string, description: 'JSON path e.g. "lines[0].quantity"' }
                   issue: { type: string }
@@ -2862,7 +2863,7 @@ components:
 
     CurrentUserContextDto:
       type: object
-      required: [user, organization_id, branch_scope, branch_ids, roles, scopes]
+      required: [user, organization_id, organization_code, branch_scope, branch_ids, roles, scopes, runtime]
       properties:
         user: { $ref: "#/components/schemas/UserDto" }
         organization_id: { $ref: "#/components/schemas/Uuid" }
@@ -2896,6 +2897,7 @@ components:
 
     OrganizationDto:
       type: object
+      required: [organization_id, organization_code, name, base_currency, time_zone_id, is_active]
       properties:
         organization_id: { $ref: "#/components/schemas/Uuid" }
         organization_code: { type: string, maxLength: 30 }
@@ -2934,6 +2936,7 @@ components:
 
     OrganizationSetupResultDto:
       type: object
+      required: [organization, branch, employee, user, enrollment_setup_state]
       properties:
         organization: { $ref: "#/components/schemas/OrganizationDto" }
         branch: { $ref: "#/components/schemas/BranchDto" }
@@ -2945,6 +2948,7 @@ components:
 
     BranchDto:
       type: object
+      required: [branch_id, organization_id, code, name, is_active]
       properties:
         branch_id: { $ref: "#/components/schemas/Uuid" }
         organization_id: { $ref: "#/components/schemas/Uuid" }
@@ -2976,6 +2980,7 @@ components:
 
     EnrollmentTokenDto:
       type: object
+      required: [enrollment_id, token, expires_at]
       properties:
         enrollment_id: { $ref: "#/components/schemas/Uuid" }
         token:
@@ -2991,6 +2996,7 @@ components:
 
     BranchEnrollmentResultDto:
       type: object
+      required: [organization_id, branch_id, runtime_credential, initial_cursor, credential_expires_at]
       properties:
         organization_id: { $ref: "#/components/schemas/Uuid" }
         branch_id: { $ref: "#/components/schemas/Uuid" }
@@ -3005,6 +3011,7 @@ components:
 
     EmployeeDto:
       type: object
+      required: [employee_id, organization_id, branch_id, employee_no, full_name, address, hired_on, is_active]
       properties:
         employee_id: { $ref: "#/components/schemas/Uuid" }
         organization_id: { $ref: "#/components/schemas/Uuid" }
@@ -3071,6 +3078,7 @@ components:
 
     BranchAccessGrantDto:
       type: object
+      required: [branch_id]
       properties:
         branch_id: { $ref: "#/components/schemas/Uuid" }
         branch_code: { type: string, readOnly: true }
@@ -3112,6 +3120,7 @@ components:
     # -------------------------------------------------------------------------
     ProductCategoryDto:
       type: object
+      required: [category_id, code, name, is_active]
       properties:
         category_id: { $ref: "#/components/schemas/Uuid" }
         parent_category_id:
@@ -3152,6 +3161,7 @@ components:
 
     ProductUomDto:
       type: object
+      required: [product_uom_id, uom_code, display_name, conversion_to_base, is_base, is_sellable, is_purchasable, is_active]
       properties:
         product_uom_id: { $ref: "#/components/schemas/Uuid" }
         uom_code: { type: string, maxLength: 20 }
@@ -3200,6 +3210,7 @@ components:
 
     ProductDto:
       type: object
+      required: [product_id, category_id, sku, name, base_uom_code, tax_rate, lot_tracking_required, expiry_alert_days, is_active, uoms]
       properties:
         product_id: { $ref: "#/components/schemas/Uuid" }
         category_id: { $ref: "#/components/schemas/Uuid" }
@@ -3263,6 +3274,7 @@ components:
 
     ReorderRuleDto:
       type: object
+      required: [reorder_rule_id, product_id, branch_id, reorder_point_base, reorder_quantity_base, is_active]
       properties:
         reorder_rule_id: { $ref: "#/components/schemas/Uuid" }
         product_id: { $ref: "#/components/schemas/Uuid" }
@@ -3310,6 +3322,7 @@ components:
 
     InventoryLocationDto:
       type: object
+      required: [location_id, branch_id, location_code, name, location_type, is_sellable, is_active]
       properties:
         location_id: { $ref: "#/components/schemas/Uuid" }
         branch_id: { $ref: "#/components/schemas/Uuid" }
@@ -3338,6 +3351,7 @@ components:
 
     InventoryBatchDto:
       type: object
+      required: [batch_id, product_id, batch_number, quality_status]
       properties:
         batch_id:
           allOf:
@@ -3355,6 +3369,7 @@ components:
 
     InventoryBalanceDto:
       type: object
+      required: [product_id, branch_id, location_id, batch_id, on_hand_qty_base, average_unit_cost, available_qty_base]
       properties:
         product_id: { $ref: "#/components/schemas/Uuid" }
         branch_id: { $ref: "#/components/schemas/Uuid" }
@@ -3405,6 +3420,7 @@ components:
 
     InventoryTxnLineDto:
       type: object
+      required: [inventory_txn_line_id, product_id, location_id, batch_id, product_uom_id, entered_qty, conversion_snapshot, quantity_delta_base]
       properties:
         inventory_txn_line_id: { $ref: "#/components/schemas/Uuid" }
         product_id: { $ref: "#/components/schemas/Uuid" }
@@ -3443,6 +3459,7 @@ components:
 
     InventoryTxnDto:
       type: object
+      required: [inventory_txn_id, branch_id, transaction_no, transaction_type, status, lines]
       properties:
         inventory_txn_id: { $ref: "#/components/schemas/Uuid" }
         branch_id: { $ref: "#/components/schemas/Uuid" }
@@ -3552,6 +3569,7 @@ components:
 
     SalesOrderLineDto:
       type: object
+      required: [order_line_id, product_id, product_uom_id, entered_qty, conversion_snapshot, quantity_base, unit_price_snapshot, discount_amount, tax_rate_snapshot, tax_amount_snapshot, line_total]
       properties:
         order_line_id: { $ref: "#/components/schemas/Uuid" }
         product_id: { $ref: "#/components/schemas/Uuid" }
@@ -3570,6 +3588,7 @@ components:
 
     SalesOrderDto:
       type: object
+      required: [sales_order_id, branch_id, created_by_employee_id, order_no, channel, order_status, currency_code, created_at, lines]
       properties:
         sales_order_id: { $ref: "#/components/schemas/Uuid" }
         branch_id: { $ref: "#/components/schemas/Uuid" }
@@ -3636,6 +3655,7 @@ components:
 
     CompleteSalesOrderResultDto:
       type: object
+      required: [sales_order, invoice, payment, inventory_txn]
       properties:
         sales_order: { $ref: "#/components/schemas/SalesOrderDto" }
         invoice: { $ref: "#/components/schemas/SalesInvoiceDto" }
@@ -3654,6 +3674,7 @@ components:
 
     SalesInvoiceLineDto:
       type: object
+      required: [invoice_line_id, source_order_line_id, product_id, product_uom_id, entered_qty, conversion_snapshot, quantity_base, unit_price_snapshot, discount_amount, tax_rate_snapshot, tax_amount_snapshot, net_amount, line_total, unit_cost_snapshot]
       properties:
         invoice_line_id: { $ref: "#/components/schemas/Uuid" }
         source_order_line_id: { $ref: "#/components/schemas/Uuid" }
@@ -3675,6 +3696,7 @@ components:
 
     SalesInvoiceDto:
       type: object
+      required: [invoice_id, sales_order_id, branch_id, invoice_no, status, currency_code, subtotal, discount_total, tax_total, grand_total, paid_amount, refunded_amount, payment_status, issued_at, lines]
       properties:
         invoice_id: { $ref: "#/components/schemas/Uuid" }
         sales_order_id: { $ref: "#/components/schemas/Uuid" }
@@ -3703,6 +3725,7 @@ components:
 
     SalesPaymentDto:
       type: object
+      required: [payment_id, invoice_id, amount_due, cash_tendered_amount, change_amount, method, received_by_employee_id, paid_at]
       properties:
         payment_id: { $ref: "#/components/schemas/Uuid" }
         invoice_id: { $ref: "#/components/schemas/Uuid" }
@@ -3727,6 +3750,7 @@ components:
 
     SalesReturnLineDto:
       type: object
+      required: [return_line_id, invoice_line_id, product_id, batch_id, destination_location_id, quantity_base, refund_amount, disposition]
       properties:
         return_line_id: { $ref: "#/components/schemas/Uuid" }
         invoice_line_id: { $ref: "#/components/schemas/Uuid" }
@@ -3777,6 +3801,7 @@ components:
 
     SalesRefundDto:
       type: object
+      required: [refund_id, sales_return_id, invoice_id, amount, method, processed_by_employee_id, refunded_at]
       properties:
         refund_id: { $ref: "#/components/schemas/Uuid" }
         sales_return_id: { $ref: "#/components/schemas/Uuid" }
@@ -3821,6 +3846,7 @@ components:
     # -------------------------------------------------------------------------
     SupplierDto:
       type: object
+      required: [supplier_id, supplier_code, legal_name, default_lead_time_days, is_active]
       properties:
         supplier_id: { $ref: "#/components/schemas/Uuid" }
         supplier_code: { type: string, maxLength: 30 }
@@ -3873,6 +3899,7 @@ components:
 
     PurchaseOrderLineDto:
       type: object
+      required: [po_line_id, product_id, product_uom_id, entered_ordered_qty, conversion_snapshot, ordered_qty_base, received_qty_base, rejected_qty_base, cancelled_qty_base, unit_cost_entered, unit_cost_base, discount_amount, tax_rate_snapshot, tax_amount, line_total, allocated_additional_cost, min_remaining_shelf_days]
       properties:
         po_line_id: { $ref: "#/components/schemas/Uuid" }
         product_id: { $ref: "#/components/schemas/Uuid" }
@@ -3905,6 +3932,7 @@ components:
 
     PurchaseOrderDto:
       type: object
+      required: [purchase_order_id, po_no, supplier_id, branch_id, created_by_employee_id, status, currency_code, subtotal, tax_total, additional_costs, total_amount, paid_amount, payment_status, lines]
       properties:
         purchase_order_id: { $ref: "#/components/schemas/Uuid" }
         po_no: { type: string, maxLength: 40 }
@@ -4057,6 +4085,7 @@ components:
 
     ReceiveLineDto:
       type: object
+      required: [po_line_id, product_id, product_uom_id, entered_qty, entered_accepted_qty, entered_rejected_qty, received_qty_base, accepted_qty_base, rejected_qty_base, remaining_qty_base, batch_id]
       properties:
         po_line_id: { $ref: "#/components/schemas/Uuid" }
         product_id: { $ref: "#/components/schemas/Uuid" }
@@ -4072,6 +4101,7 @@ components:
 
     PurchaseReceiptResultDto:
       type: object
+      required: [inventory_txn_id, purchase_order_status, lines]
       properties:
         inventory_txn_id: { $ref: "#/components/schemas/Uuid" }
         purchase_order_status: { $ref: "#/components/schemas/PurchaseOrderStatus" }
@@ -4100,6 +4130,7 @@ components:
 
     SupplierPaymentDto:
       type: object
+      required: [supplier_payment_id, supplier_id, purchase_order_id, amount, currency_code, method, paid_at, recorded_by_employee_id]
       properties:
         supplier_payment_id: { $ref: "#/components/schemas/Uuid" }
         supplier_id: { $ref: "#/components/schemas/Uuid" }
@@ -4121,6 +4152,7 @@ components:
 
     VendorReturnLineDto:
       type: object
+      required: [vendor_return_line_id, purchase_order_line_id, product_id, batch_id, location_id, quantity_base, unit_cost_snapshot]
       properties:
         vendor_return_line_id: { $ref: "#/components/schemas/Uuid" }
         purchase_order_line_id: { $ref: "#/components/schemas/Uuid" }
@@ -4133,6 +4165,7 @@ components:
 
     VendorReturnDto:
       type: object
+      required: [vendor_return_id, return_no, supplier_id, branch_id, created_by_employee_id, status, created_at, lines]
       properties:
         vendor_return_id: { $ref: "#/components/schemas/Uuid" }
         return_no: { type: string, maxLength: 40 }

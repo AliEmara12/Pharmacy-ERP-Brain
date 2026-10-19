@@ -101,6 +101,7 @@
     },
     "ErrorDetail": {
       "type": "object",
+      "required": ["issue"],
       "properties": {
         "field": { "type": "string", "description": "JSON path e.g. \"lines[0].quantity\"" },
         "issue": { "type": "string" }
