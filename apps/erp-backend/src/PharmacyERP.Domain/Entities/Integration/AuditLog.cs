@@ -1,0 +1,48 @@
+﻿using PharmacyERP.Domain.Enums;
+
+namespace PharmacyERP.Domain.Entities.Integration;
+
+public class AuditLog
+{
+    public Guid AuditLogId { get; private set; }
+    public Guid OrganizationId { get; private set; }
+    public Guid? BranchId { get; private set; }
+    public Guid? ActorUserId { get; private set; }
+    public Guid? ActorEmployeeId { get; private set; }
+    public AuditActorType ActorType { get; private set; }
+    public string Action { get; private set; } = null!;
+    public string EntitySchema { get; private set; } = null!;
+    public string EntityName { get; private set; } = null!;
+    public Guid EntityId { get; private set; }
+    public string? SourcePromptId { get; private set; }
+    public string? BeforeData { get; private set; }
+    public string? AfterData { get; private set; }
+    public string TraceId { get; private set; } = null!;
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    private AuditLog() { }
+
+    public AuditLog(Guid organizationId, Guid? branchId, Guid? actorUserId, Guid? actorEmployeeId, AuditActorType actorType,
+                    string action, string entitySchema, string entityName, Guid entityId,
+                    string? beforeData, string? afterData, string traceId, string? sourcePromptId = null)
+    {
+        if (actorType == AuditActorType.AI_ASSISTED && string.IsNullOrWhiteSpace(sourcePromptId))
+            throw new ArgumentException("SourcePromptId is required for AI_ASSISTED actions.");
+
+        AuditLogId = Guid.NewGuid();
+        OrganizationId = organizationId;
+        BranchId = branchId;
+        ActorUserId = actorUserId;
+        ActorEmployeeId = actorEmployeeId;
+        ActorType = actorType;
+        Action = action;
+        EntitySchema = entitySchema;
+        EntityName = entityName;
+        EntityId = entityId;
+        BeforeData = beforeData;
+        AfterData = afterData;
+        TraceId = traceId;
+        SourcePromptId = sourcePromptId;
+        CreatedAt = DateTimeOffset.UtcNow;
+    }
+}

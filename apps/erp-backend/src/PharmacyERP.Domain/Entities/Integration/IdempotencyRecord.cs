@@ -1,0 +1,30 @@
+﻿namespace PharmacyERP.Domain.Entities.Integration;
+
+public class IdempotencyRecord
+{
+    public Guid IdempotencyRecordId { get; private set; }
+    public Guid OrganizationId { get; private set; }
+    public Guid? BranchId { get; private set; }
+    public string OperationScope { get; private set; } = null!;
+    public string IdempotencyKey { get; private set; } = null!;
+    public string PayloadHash { get; private set; } = null!;
+    public string ResponseBody { get; private set; } = null!;
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    private IdempotencyRecord() { }
+
+    public IdempotencyRecord(Guid organizationId, Guid? branchId, string operationScope, string idempotencyKey, string payloadHash, string responseBody)
+    {
+        if (payloadHash.Length != 64)
+            throw new ArgumentException("PayloadHash must be exactly 64 characters (SHA-256 Hex).");
+
+        IdempotencyRecordId = Guid.NewGuid();
+        OrganizationId = organizationId;
+        BranchId = branchId;
+        OperationScope = operationScope;
+        IdempotencyKey = idempotencyKey;
+        PayloadHash = payloadHash;
+        ResponseBody = responseBody;
+        CreatedAt = DateTimeOffset.UtcNow;
+    }
+}
