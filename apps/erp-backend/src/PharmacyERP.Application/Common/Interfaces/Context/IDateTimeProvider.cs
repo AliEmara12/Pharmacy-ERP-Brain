@@ -1,6 +1,4 @@
-﻿
-
-namespace PharmacyERP.Application.Common.Interfaces
+﻿namespace PharmacyERP.Application.Common.Interfaces.Context
 {
     public interface IDateTimeProvider
     {
