@@ -6,7 +6,6 @@
 
   <ItemGroup>
     <Folder Include="Common\Interfaces\CrossModule\" />
-    <Folder Include="Common\Interfaces\Persistence\" />
   </ItemGroup>
 
   <PropertyGroup>
