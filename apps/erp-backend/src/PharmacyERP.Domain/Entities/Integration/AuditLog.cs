@@ -1,4 +1,5 @@
 ﻿using PharmacyERP.Domain.Enums;
+using PharmacyERP.Domain.Exceptions;
 
 namespace PharmacyERP.Domain.Entities.Integration;
 
@@ -27,7 +28,7 @@ public class AuditLog
                     string? beforeData, string? afterData, string traceId, string? sourcePromptId = null)
     {
         if (actorType == AuditActorType.AI_ASSISTED && string.IsNullOrWhiteSpace(sourcePromptId))
-            throw new ArgumentException("SourcePromptId is required for AI_ASSISTED actions.");
+            throw new MissingSourcePromptIdException();
 
         AuditLogId = Guid.NewGuid();
         OrganizationId = organizationId;

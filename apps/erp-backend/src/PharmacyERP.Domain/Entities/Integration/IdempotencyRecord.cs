@@ -1,4 +1,6 @@
-﻿namespace PharmacyERP.Domain.Entities.Integration;
+﻿using PharmacyERP.Domain.Exceptions; 
+
+namespace PharmacyERP.Domain.Entities.Integration;
 
 public class IdempotencyRecord
 {
@@ -15,8 +17,8 @@ public class IdempotencyRecord
 
     public IdempotencyRecord(Guid organizationId, Guid? branchId, string operationScope, string idempotencyKey, string payloadHash, string responseBody)
     {
-        if (payloadHash.Length != 64)
-            throw new ArgumentException("PayloadHash must be exactly 64 characters (SHA-256 Hex).");
+        if (string.IsNullOrWhiteSpace(payloadHash) || payloadHash.Length != 64)
+            throw new InvalidIdempotencyHashException(payloadHash ?? "null");
 
         IdempotencyRecordId = Guid.NewGuid();
         OrganizationId = organizationId;
