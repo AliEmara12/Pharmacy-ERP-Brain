@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\PharmacyERP.Domain\PharmacyERP.Domain.csproj" />
     <ProjectReference Include="..\PharmacyERP.Application\PharmacyERP.Application.csproj" />
+	  <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <PropertyGroup>
