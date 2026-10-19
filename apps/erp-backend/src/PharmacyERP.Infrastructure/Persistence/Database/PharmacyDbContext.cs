@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PharmacyERP.Application.Common.Interfaces.Context;
+using System.Linq.Expressions;
 
 namespace PharmacyERP.Infrastructure.Persistence.Database;
 
@@ -32,15 +33,15 @@ public partial class PharmacyDbContext : DbContext
             var orgIdProperty = entityType.FindProperty("OrganizationId");
             if (orgIdProperty != null && orgIdProperty.ClrType == typeof(Guid))
             {
-                var parameter = System.Linq.Expressions.Expression.Parameter(entityType.ClrType, "e");
-                var property = System.Linq.Expressions.Expression.Property(parameter, orgIdProperty.PropertyInfo!);
-                var currentOrgId = System.Linq.Expressions.Expression.Property(
-                    System.Linq.Expressions.Expression.Constant(this),
+                var parameter = Expression.Parameter(entityType.ClrType, "e");
+                var property = Expression.Property(parameter, orgIdProperty.PropertyInfo!);
+                var currentOrgId = Expression.Property(
+                    Expression.Constant(this),
                     nameof(CurrentOrganizationId)
                 );
 
-                var filter = System.Linq.Expressions.Expression.Equal(property, System.Linq.Expressions.Expression.Convert(currentOrgId, typeof(Guid)));
-                var lambda = System.Linq.Expressions.Expression.Lambda(filter, parameter);
+                var filter = Expression.Equal(property, Expression.Convert(currentOrgId, typeof(Guid)));
+                var lambda = Expression.Lambda(filter, parameter);
 
                 entityType.SetQueryFilter(lambda);
             }

@@ -21,7 +21,6 @@ public class UnitOfWork : IUnitOfWork
         if (_currentTransaction != null)
             throw new InvalidOperationException("A transaction is already in progress.");
 
-        // مجرد فتح المعاملة سيقوم الـ Interceptor بتطبيق set_config لـ RLS تلقائياً
         _currentTransaction = await _dbContext.Database.BeginTransactionAsync(ct);
     }
 

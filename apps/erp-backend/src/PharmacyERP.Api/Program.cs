@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
+using PharmacyERP.Application.Common.Interfaces.Context;
 using PharmacyERP.Application.Common.Interfaces.Persistence;
-
 using PharmacyERP.Infrastructure.Persistence.Database;
 using PharmacyERP.Infrastructure.Persistence.Interceptors;
 using PharmacyERP.Infrastructure.Persistence.Repositories;
 using PharmacyERP.Infrastructure.Persistence.UoW;
+using PharmacyERP.Infrastructure.Services.Context;
 
 
 namespace PharmacyERP.Api
@@ -30,8 +31,12 @@ namespace PharmacyERP.Api
 
                 options.AddInterceptors(sp.GetRequiredService<TenantRlsConnectionInterceptor>());
             });
+            builder.Services.AddHttpContextAccessor();
 
-          
+            builder.Services.AddScoped<ITenantContext, TenantContext>();
+            builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+            builder.Services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+            builder.Services.AddSingleton<IRuntimeModeProvider, RuntimeModeProvider>();
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
