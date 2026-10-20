@@ -1,0 +1,17 @@
+# Application Features (Vertical Slices / Use Cases)
+
+Organized by business domain feature:
+
+- **Identity/**: Authentication, user management, role-based authorization, JWT generation.
+- **Catalog/**: Medicine master data, dosage forms, active ingredients, categories, manufacturers.
+- **Inventory/**: Stock levels, batch numbers, expiration dates, stock transfers, physical count adjustments.
+- **Sales/**: Point-of-Sale (POS) transactions, prescription sales, receipt printing, cash drawer shifts, returns.
+- **Purchasing/**: Supplier management, purchase orders, goods receipt notes (GRN), purchase invoices.
+- **Integration/**: E-invoicing (e.g. ETA/ZATCA), external lab/insurance APIs, sync triggers.
+
+Each feature folder is structured into:
+- `Interfaces/`: Feature-specific repository contracts.
+- `Services/Interfaces/`: Feature-specific application service contracts.
+- `Services/Implementations/`: Concrete application service implementations.
+- `DTOs/`: Feature-specific request and response contracts.
+- `Validators/`: FluentValidation rule sets.

@@ -1,0 +1,12 @@
+﻿<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PharmacyERP.Api/PharmacyERP.Api.csproj" />
+    <Project Path="src/PharmacyERP.Application/PharmacyERP.Application.csproj" />
+    <Project Path="src/PharmacyERP.Domain/PharmacyERP.Domain.csproj" />
+    <Project Path="src/PharmacyERP.Infrastructure/PharmacyERP.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PharmacyERP.IntegrationTests/PharmacyERP.IntegrationTests.csproj" />
+    <Project Path="tests/PharmacyERP.UnitTests/PharmacyERP.UnitTests.csproj" />
+  </Folder>
+</Solution>
