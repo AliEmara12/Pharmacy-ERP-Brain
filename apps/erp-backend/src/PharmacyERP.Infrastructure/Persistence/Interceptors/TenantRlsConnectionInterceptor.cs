@@ -57,7 +57,8 @@ public class TenantRlsConnectionInterceptor : DbCommandInterceptor
 
     private void EnforceTenantSecurity(DbCommand command)
     {
-        if (_tenantContext.IsSystemBypassAllowed) return;
+        if (_tenantContext.IsSystemBypassEnabled) // <-- To this
+            return;
 
         if (command.Transaction == null)
             throw new InvalidOperationException("PostgreSQL RLS requires an active transaction. No transaction found.");
