@@ -17,27 +17,27 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddScoped<TenantRlsConnectionInterceptor>();
-
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.");
-
-        services.AddDbContext<PharmacyDbContext>((sp, options) =>
-        {
-            options.UseNpgsql(connectionString, npgsql =>
-            {
-                npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "integration");
-            });
-            options.AddInterceptors(sp.GetRequiredService<TenantRlsConnectionInterceptor>());
-        });
-
-        services.AddScoped<IUnitOfWork, UnitOfWork>();
-        services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+        services.AddHttpContextAccessor();
 
         services.AddScoped<ITenantContext, TenantContext>();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
         services.AddSingleton<IRuntimeModeProvider, RuntimeModeProvider>();
+
+        services.AddScoped<TenantRlsConnectionInterceptor>();
+
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? "Host=localhost;Database=pharmacy_erp;Username=postgres;Password=postgres";
+
+        services.AddDbContext<PharmacyDbContext>((sp, options) =>
+        {
+            var rlsInterceptor = sp.GetRequiredService<TenantRlsConnectionInterceptor>();
+            options.UseNpgsql(connectionString)
+                   .AddInterceptors(rlsInterceptor);
+        });
+
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
         services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
         services.AddScoped<IOutboxRepository, OutboxRepository>();
