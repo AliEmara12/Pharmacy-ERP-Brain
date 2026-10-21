@@ -30,7 +30,7 @@ public class AuditLog
 
     public AuditLog(Guid organizationId, Guid? branchId, Guid? actorUserId, Guid? actorEmployeeId, AuditActorType actorType,
                     string action, string entitySchema, string entityName, Guid entityId,
-                    string? beforeData, string? afterData, string traceId, string? sourcePromptId = null)
+                    string? beforeData, string? afterData, string traceId, DateTimeOffset createdAt, string? sourcePromptId = null)
     {
         if (actorType == AuditActorType.AI_ASSISTED && (actorUserId == null || string.IsNullOrWhiteSpace(sourcePromptId)))
             throw new MissingSourcePromptIdException();
@@ -54,6 +54,6 @@ public class AuditLog
         AfterData = afterData;
         TraceId = traceId;
         SourcePromptId = sourcePromptId;
-        CreatedAt = DateTimeOffset.UtcNow;
+        CreatedAt = createdAt; // Injected from Service
     }
 }

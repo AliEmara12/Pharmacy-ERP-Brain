@@ -18,7 +18,7 @@ public class IdempotencyRecord
 
     private IdempotencyRecord() { }
 
-    public IdempotencyRecord(Guid organizationId, Guid? branchId, string operationScope, string idempotencyKey, string payloadHash, string responseBody)
+    public IdempotencyRecord(Guid organizationId, Guid? branchId, string operationScope, string idempotencyKey, string payloadHash, string responseBody, DateTimeOffset createdAt)
     {
         if (string.IsNullOrWhiteSpace(payloadHash) || payloadHash.Length != 64)
             throw new InvalidIdempotencyHashException(payloadHash ?? "null");
@@ -33,6 +33,6 @@ public class IdempotencyRecord
         IdempotencyKey = idempotencyKey;
         PayloadHash = payloadHash;
         ResponseBody = responseBody;
-        CreatedAt = DateTimeOffset.UtcNow;
+        CreatedAt = createdAt; // Injected from Service
     }
 }

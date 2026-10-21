@@ -21,7 +21,7 @@ public class IntegrationServicesTests
     public IntegrationServicesTests()
     {
         _organizationId = Guid.NewGuid();
-        
+
         _tenantContextMock = new Mock<ITenantContext>();
         _tenantContextMock.Setup(x => x.OrganizationId).Returns(_organizationId);
         _tenantContextMock.Setup(x => x.IsTenantBound).Returns(true);
@@ -43,12 +43,12 @@ public class IntegrationServicesTests
         var operationScope = "test.scope";
         var requestPayload = new { Amount = 100 };
         var payloadHash = CanonicalJsonHasher.ComputeSha256Hex(requestPayload);
-        
-        var existingRecord = new IdempotencyRecord(_organizationId, null, operationScope, idempotencyKey, payloadHash, "{\"status\":\"success\"}");
+
+        var existingRecord = new IdempotencyRecord(_organizationId, null, operationScope, idempotencyKey, payloadHash, "{\"status\":\"success\"}", _dateTimeProviderMock.Object.UtcNow);
 
         repositoryMock.Setup(x => x.GetAsync(_organizationId, null, operationScope, idempotencyKey, It.IsAny<CancellationToken>())).ReturnsAsync(existingRecord);
 
-        var service = new IdempotencyService(repositoryMock.Object, _tenantContextMock.Object);
+        var service = new IdempotencyService(repositoryMock.Object, _tenantContextMock.Object, _dateTimeProviderMock.Object);
         var result = await service.CheckAsync<object, object>(operationScope, idempotencyKey, null, requestPayload);
 
         Assert.True(result.IsReplay);
@@ -61,16 +61,16 @@ public class IntegrationServicesTests
         var repositoryMock = new Mock<IIdempotencyRepository>();
         var idempotencyKey = "test-key-123";
         var operationScope = "test.scope";
-        
+
         var originalPayload = new { Amount = 100 };
         var tamperedPayload = new { Amount = 500 };
         var originalHash = CanonicalJsonHasher.ComputeSha256Hex(originalPayload);
-        
-        var existingRecord = new IdempotencyRecord(_organizationId, null, operationScope, idempotencyKey, originalHash, "{}");
+
+        var existingRecord = new IdempotencyRecord(_organizationId, null, operationScope, idempotencyKey, originalHash, "{}", _dateTimeProviderMock.Object.UtcNow);
 
         repositoryMock.Setup(x => x.GetAsync(_organizationId, null, operationScope, idempotencyKey, It.IsAny<CancellationToken>())).ReturnsAsync(existingRecord);
 
-        var service = new IdempotencyService(repositoryMock.Object, _tenantContextMock.Object);
+        var service = new IdempotencyService(repositoryMock.Object, _tenantContextMock.Object, _dateTimeProviderMock.Object);
 
         await Assert.ThrowsAsync<IntegrationDomainException>(() => service.CheckAsync<object, object>(operationScope, idempotencyKey, null, tamperedPayload));
     }
@@ -84,7 +84,7 @@ public class IntegrationServicesTests
 
         repositoryMock.Setup(x => x.GetAsync(_organizationId, null, operationScope, idempotencyKey, It.IsAny<CancellationToken>())).ReturnsAsync((IdempotencyRecord?)null);
 
-        var service = new IdempotencyService(repositoryMock.Object, _tenantContextMock.Object);
+        var service = new IdempotencyService(repositoryMock.Object, _tenantContextMock.Object, _dateTimeProviderMock.Object);
         var result = await service.CheckAsync<object, object>(operationScope, idempotencyKey, null, new { Amount = 200 });
 
         Assert.False(result.IsReplay);
@@ -105,7 +105,7 @@ public class IntegrationServicesTests
             .Callback<IdempotencyRecord, CancellationToken>((rec, _) => savedRecord = rec)
             .Returns(Task.CompletedTask);
 
-        var service = new IdempotencyService(repositoryMock.Object, _tenantContextMock.Object);
+        var service = new IdempotencyService(repositoryMock.Object, _tenantContextMock.Object, _dateTimeProviderMock.Object);
         await service.PersistResponseAsync(operationScope, idempotencyKey, null, requestPayload, responsePayload);
 
         Assert.NotNull(savedRecord);
@@ -121,7 +121,7 @@ public class IntegrationServicesTests
     {
         var repositoryMock = new Mock<IOutboxRepository>();
         var cursor = new OutboxEventCursor(_organizationId);
-        
+
         repositoryMock.Setup(x => x.LockAndGetCursorAsync(_organizationId, It.IsAny<CancellationToken>())).ReturnsAsync(cursor);
 
         OutboxEvent? savedEvent = null;
@@ -146,7 +146,7 @@ public class IntegrationServicesTests
 
         var service = new OutboxService(repositoryMock.Object, _tenantContextMock.Object, _dateTimeProviderMock.Object, _currentUserMock.Object);
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnqueueAsync("test.event", null, new { Data = "Test" }));
-            
+
         Assert.Contains("OutboxEventCursor missing", exception.Message);
     }
 
@@ -154,13 +154,13 @@ public class IntegrationServicesTests
     public async Task AuditLogger_LogAsync_CreatesValidAuditEntry()
     {
         var repositoryMock = new Mock<IAuditLogRepository>();
-        
+
         AuditLog? savedLog = null;
         repositoryMock.Setup(x => x.AddAsync(It.IsAny<AuditLog>(), It.IsAny<CancellationToken>()))
             .Callback<AuditLog, CancellationToken>((log, _) => savedLog = log)
             .Returns(Task.CompletedTask);
 
-        var service = new AuditLogger(repositoryMock.Object, _tenantContextMock.Object, _currentUserMock.Object);
+        var service = new AuditLogger(repositoryMock.Object, _tenantContextMock.Object, _currentUserMock.Object, _dateTimeProviderMock.Object);
         await service.LogAsync("UPDATE", "catalog", "PRODUCT", Guid.NewGuid(), new { Price = 10 }, new { Price = 20 });
 
         Assert.NotNull(savedLog);
@@ -185,7 +185,7 @@ public class IntegrationServicesTests
             .Callback<AuditLog, CancellationToken>((log, _) => savedLog = log)
             .Returns(Task.CompletedTask);
 
-        var service = new AuditLogger(repositoryMock.Object, _tenantContextMock.Object, unauthenticatedUserMock.Object);
+        var service = new AuditLogger(repositoryMock.Object, _tenantContextMock.Object, unauthenticatedUserMock.Object, _dateTimeProviderMock.Object);
         await service.LogAsync("BACKGROUND_SYNC", "integration", "SYSTEM", Guid.NewGuid(), null, null);
 
         Assert.NotNull(savedLog);
@@ -199,9 +199,9 @@ public class IntegrationServicesTests
         var noTenantMock = new Mock<ITenantContext>();
         noTenantMock.Setup(x => x.OrganizationId).Returns((Guid?)null);
 
-        var idempotencyService = new IdempotencyService(new Mock<IIdempotencyRepository>().Object, noTenantMock.Object);
+        var idempotencyService = new IdempotencyService(new Mock<IIdempotencyRepository>().Object, noTenantMock.Object, _dateTimeProviderMock.Object);
         var outboxService = new OutboxService(new Mock<IOutboxRepository>().Object, noTenantMock.Object, _dateTimeProviderMock.Object, _currentUserMock.Object);
-        var auditLogger = new AuditLogger(new Mock<IAuditLogRepository>().Object, noTenantMock.Object, _currentUserMock.Object);
+        var auditLogger = new AuditLogger(new Mock<IAuditLogRepository>().Object, noTenantMock.Object, _currentUserMock.Object, _dateTimeProviderMock.Object);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => idempotencyService.CheckAsync<object, object>("scope", "key", null, new { }));
         await Assert.ThrowsAsync<InvalidOperationException>(() => outboxService.EnqueueAsync("event", null, new { }));

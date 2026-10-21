@@ -68,7 +68,7 @@ public class IntegrationEntitiesTests
     public void IdempotencyRecord_InvalidHashLength_ThrowsInvalidIdempotencyHashException()
     {
         Assert.Throws<InvalidIdempotencyHashException>(() =>
-            new IdempotencyRecord(Guid.NewGuid(), null, "catalog.product.create", "key-1", "short-hash", "{}"));
+            new IdempotencyRecord(Guid.NewGuid(), null, "catalog.product.create", "key-1", "short-hash", "{}", DateTimeOffset.UtcNow));
     }
 
     [Fact]
@@ -77,10 +77,10 @@ public class IntegrationEntitiesTests
         var validHash = new string('a', 64);
 
         Assert.Throws<IntegrationDomainException>(() =>
-            new IdempotencyRecord(Guid.NewGuid(), null, "", "key", validHash, "{}"));
+            new IdempotencyRecord(Guid.NewGuid(), null, "", "key", validHash, "{}", DateTimeOffset.UtcNow));
 
         Assert.Throws<IntegrationDomainException>(() =>
-            new IdempotencyRecord(Guid.NewGuid(), null, "scope", "", validHash, "{}"));
+            new IdempotencyRecord(Guid.NewGuid(), null, "scope", "", validHash, "{}", DateTimeOffset.UtcNow));
     }
 
     [Fact]
@@ -88,11 +88,11 @@ public class IntegrationEntitiesTests
     {
         Assert.Throws<MissingSourcePromptIdException>(() =>
             new AuditLog(Guid.NewGuid(), null, Guid.NewGuid(), null, AuditActorType.AI_ASSISTED,
-                "CREATE", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1", sourcePromptId: null));
+                "CREATE", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1", DateTimeOffset.UtcNow, sourcePromptId: null));
 
         Assert.Throws<MissingSourcePromptIdException>(() =>
             new AuditLog(Guid.NewGuid(), null, actorUserId: null, null, AuditActorType.AI_ASSISTED,
-                "CREATE", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1", sourcePromptId: "prompt-99"));
+                "CREATE", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1", DateTimeOffset.UtcNow, sourcePromptId: "prompt-99"));
     }
 
     [Fact]
@@ -100,10 +100,10 @@ public class IntegrationEntitiesTests
     {
         Assert.Throws<IntegrationDomainException>(() =>
             new AuditLog(Guid.NewGuid(), null, Guid.NewGuid(), null, AuditActorType.USER,
-                "", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1"));
+                "", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1", DateTimeOffset.UtcNow));
 
         Assert.Throws<IntegrationDomainException>(() =>
             new AuditLog(Guid.NewGuid(), null, Guid.NewGuid(), null, AuditActorType.USER,
-                "CREATE", "", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1"));
+                "CREATE", "", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1", DateTimeOffset.UtcNow));
     }
 }

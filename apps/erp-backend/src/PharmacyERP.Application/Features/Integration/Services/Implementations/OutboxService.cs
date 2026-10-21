@@ -1,4 +1,6 @@
-﻿using System.Text.Json;
+﻿using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using PharmacyERP.Application.Common.Interfaces.Context;
 using PharmacyERP.Application.Common.Interfaces.Integration;
 using PharmacyERP.Application.Features.Integration.Interfaces;
@@ -8,6 +10,15 @@ namespace PharmacyERP.Application.Features.Integration.Services.Implementations;
 
 public class OutboxService : IOutboxService
 {
+    private static readonly JsonSerializerOptions OutboxJsonOptions = new()
+    {
+        WriteIndented = false,
+        ReferenceHandler = ReferenceHandler.IgnoreCycles,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
     private readonly IOutboxRepository _repository;
     private readonly ITenantContext _tenantContext;
     private readonly IDateTimeProvider _dateTimeProvider;
@@ -37,7 +48,7 @@ public class OutboxService : IOutboxService
         }
 
         var nextSequence = cursor.AllocateNextSequence(_dateTimeProvider.UtcNow);
-        var payloadJson = JsonSerializer.Serialize(payload);
+        var payloadJson = JsonSerializer.Serialize(payload, OutboxJsonOptions);
 
         var outboxEvent = new OutboxEvent(
             Guid.NewGuid(),
