@@ -54,8 +54,7 @@ public class IntegrationModelAndInterceptorTests
         var interceptor = new TenantRlsConnectionInterceptor(tenantContext);
 
         var commandMock = new Mock<DbCommand>();
-
-        // Fix: Mock the protected DbTransaction property instead of the public non-virtual Transaction property
+        commandMock.Setup(x => x.CommandText).Returns("SELECT * FROM PRODUCTS");
         commandMock.Protected().Setup<DbTransaction>("DbTransaction").Returns((DbTransaction?)null);
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -70,8 +69,7 @@ public class IntegrationModelAndInterceptorTests
 
         var transactionMock = new Mock<DbTransaction>();
         var commandMock = new Mock<DbCommand>();
-
-        // Fix: Mock the protected DbTransaction property to return our mocked transaction
+        commandMock.Setup(x => x.CommandText).Returns("SELECT * FROM PRODUCTS");
         commandMock.Protected().Setup<DbTransaction>("DbTransaction").Returns(transactionMock.Object);
 
         Assert.Throws<UnauthorizedAccessException>(() =>
@@ -87,9 +85,11 @@ public class IntegrationModelAndInterceptorTests
         var interceptor = new TenantRlsConnectionInterceptor(tenantContext);
 
         var commandMock = new Mock<DbCommand>();
+        commandMock.Setup(x => x.CommandText).Returns("SELECT * FROM PRODUCTS");
 
         var result = interceptor.ScalarExecuting(commandMock.Object, null!, default);
 
         Assert.Equal(default, result);
     }
+
 }

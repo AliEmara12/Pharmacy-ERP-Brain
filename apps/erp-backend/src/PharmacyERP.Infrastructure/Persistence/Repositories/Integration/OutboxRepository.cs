@@ -16,11 +16,30 @@ public class OutboxRepository : IOutboxRepository
 
     public async Task<OutboxEventCursor?> LockAndGetCursorAsync(Guid organizationId, CancellationToken ct = default)
     {
-        var cursors = await _dbContext.OutboxEventCursors
-            .FromSqlInterpolated($"SELECT * FROM integration.\"OUTBOX_EVENT_CURSOR\" WHERE organization_id = {organizationId} FOR UPDATE")
-            .ToListAsync(ct);
+        if (_dbContext.Database.IsRelational())
+        {
+            await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $@"INSERT INTO integration.""OUTBOX_EVENT_CURSOR"" (organization_id, last_event_sequence, updated_at)
+                   VALUES ({organizationId}, 0, NOW())
+                   ON CONFLICT (organization_id) DO NOTHING;", ct);
 
-        return cursors.FirstOrDefault();
+            var cursors = await _dbContext.OutboxEventCursors
+                .FromSqlInterpolated($"SELECT * FROM integration.\"OUTBOX_EVENT_CURSOR\" WHERE organization_id = {organizationId} FOR UPDATE")
+                .ToListAsync(ct);
+
+            return cursors.FirstOrDefault();
+        }
+
+        var localCursor = await _dbContext.OutboxEventCursors
+            .FirstOrDefaultAsync(x => x.OrganizationId == organizationId, ct);
+
+        if (localCursor == null)
+        {
+            localCursor = new OutboxEventCursor(organizationId);
+            await _dbContext.OutboxEventCursors.AddAsync(localCursor, ct);
+        }
+
+        return localCursor;
     }
 
     public async Task AddEventAsync(OutboxEvent outboxEvent, CancellationToken ct = default)
