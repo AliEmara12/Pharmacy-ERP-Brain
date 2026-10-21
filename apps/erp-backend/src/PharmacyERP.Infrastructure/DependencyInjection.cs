@@ -3,9 +3,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PharmacyERP.Application.Common.Interfaces.Context;
 using PharmacyERP.Application.Common.Interfaces.Persistence;
+using PharmacyERP.Application.Features.Integration.Interfaces;
 using PharmacyERP.Infrastructure.Persistence.Database;
 using PharmacyERP.Infrastructure.Persistence.Interceptors;
 using PharmacyERP.Infrastructure.Persistence.Repositories;
+using PharmacyERP.Infrastructure.Persistence.Repositories.Integration;
 using PharmacyERP.Infrastructure.Persistence.UoW;
 using PharmacyERP.Infrastructure.Services.Context;
 
@@ -37,10 +39,9 @@ public static class DependencyInjection
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
         services.AddSingleton<IRuntimeModeProvider, RuntimeModeProvider>();
 
-        // 4. خدمات التكامل (سيتم تفعيلها في Task 6)
-        // services.AddScoped<IIdempotencyService, IdempotencyService>();
-        // services.AddScoped<IOutboxService, OutboxService>();
-        // services.AddScoped<IAuditLogger, AuditLogger>();
+        services.AddScoped<IIdempotencyRepository, IdempotencyRepository>();
+        services.AddScoped<IOutboxRepository, OutboxRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
         return services;
     }
