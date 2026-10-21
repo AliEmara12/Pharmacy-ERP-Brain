@@ -4,10 +4,17 @@ namespace PharmacyERP.Domain.Entities.Identity;
 
 public sealed class UserRefreshToken
 {
+    private byte[] _tokenHash = Array.Empty<byte>();
+
     public Guid RefreshTokenId { get; private set; }
     public Guid OrganizationId { get; private set; }
     public Guid UserId { get; private set; }
-    public byte[] TokenHash { get; private set; } = Array.Empty<byte>();
+    // Hashes are identifiers for bearer credentials; callers must not be able to mutate them.
+    public byte[] TokenHash
+    {
+        get => _tokenHash.ToArray();
+        private set => _tokenHash = value;
+    }
     public Guid TokenFamilyId { get; private set; }
     public DateTimeOffset IssuedAt { get; private set; }
     public DateTimeOffset ExpiresAt { get; private set; }

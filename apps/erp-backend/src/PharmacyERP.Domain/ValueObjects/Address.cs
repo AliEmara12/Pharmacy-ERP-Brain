@@ -48,8 +48,8 @@ public sealed record Address
             throw new InvalidAddressException("Address CountryCode is required and must contain exactly two characters.");
 
         var normalizedCountryCode = countryCode.Trim().ToUpperInvariant();
-        if (normalizedCountryCode.Length != 2)
-            throw new InvalidAddressException("Address CountryCode must contain exactly two characters.");
+        if (normalizedCountryCode.Length != 2 || !normalizedCountryCode.All(char.IsAsciiLetter))
+            throw new InvalidAddressException("Address CountryCode must contain exactly two ASCII letters.");
 
         Line1 = line1;
         Line2 = line2;

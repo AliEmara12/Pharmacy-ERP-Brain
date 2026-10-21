@@ -4,10 +4,17 @@ namespace PharmacyERP.Domain.Entities.Identity;
 
 public sealed class BranchEnrollment
 {
+    private byte[] _tokenHash = Array.Empty<byte>();
+
     public Guid EnrollmentId { get; private set; }
     public Guid OrganizationId { get; private set; }
     public Guid BranchId { get; private set; }
-    public byte[] TokenHash { get; private set; } = Array.Empty<byte>();
+    // Hashes are identifiers for one-time credentials; callers must not be able to mutate them.
+    public byte[] TokenHash
+    {
+        get => _tokenHash.ToArray();
+        private set => _tokenHash = value;
+    }
     public DateTimeOffset ExpiresAt { get; private set; }
     public DateTimeOffset? UsedAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }

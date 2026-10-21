@@ -1,10 +1,15 @@
 {
   "ExpandedNodes": [
     "",
-    "\\.github",
-    "\\apps",
     "\\apps\\erp-backend",
-    "\\apps\\erp-backend\\src"
+    "\\apps\\erp-backend\\src",
+    "\\apps\\erp-backend\\src\\PharmacyERP.Infrastructure",
+    "\\apps\\erp-backend\\src\\PharmacyERP.Infrastructure\\Persistence",
+    "\\apps\\erp-backend\\src\\PharmacyERP.Infrastructure\\Persistence\\Configurations",
+    "\\apps\\erp-backend\\src\\PharmacyERP.Infrastructure\\Persistence\\Database",
+    "\\apps\\erp-backend\\tests",
+    "\\apps\\erp-backend\\tests\\PharmacyERP.UnitTests",
+    "\\apps\\erp-backend\\tests\\PharmacyERP.UnitTests\\Infrastructure"
   ],
   "PreviewInSolutionExplorer": false
 }

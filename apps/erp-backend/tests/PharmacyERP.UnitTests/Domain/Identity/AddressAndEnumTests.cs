@@ -27,6 +27,8 @@ public class AddressAndEnumTests
     [Theory]
     [InlineData("EGY")]
     [InlineData("E")]
+    [InlineData("1!")]
+    [InlineData("A1")]
     [InlineData("")]
     [InlineData("   ")]
     public void Address_WithCountryCodeNotExactlyTwoCharacters_ThrowsInvalidAddressException(string countryCode)
@@ -43,6 +45,24 @@ public class AddressAndEnumTests
         Assert.Equal("Apartment 2", address.Line2);
         Assert.Equal("Zagazig", address.City);
         Assert.Equal("EG", address.CountryCode);
+    }
+
+    [Theory]
+    [InlineData(201, null, 100, null, null)]
+    [InlineData(200, 201, 100, null, null)]
+    [InlineData(200, null, 101, null, null)]
+    [InlineData(200, null, 100, 101, null)]
+    [InlineData(200, null, 100, null, 21)]
+    public void Address_ExceedingAnyMaximumLength_ThrowsInvalidAddressException(
+        int line1Length, int? line2Length, int cityLength, int? regionLength, int? postalCodeLength)
+    {
+        Assert.Throws<InvalidAddressException>(() => new Address(
+            new string('a', line1Length),
+            line2Length is null ? null : new string('b', line2Length.Value),
+            new string('c', cityLength),
+            regionLength is null ? null : new string('d', regionLength.Value),
+            postalCodeLength is null ? null : new string('e', postalCodeLength.Value),
+            "EG"));
     }
 
     [Fact]
