@@ -1,4 +1,5 @@
-﻿using PharmacyERP.Domain.Enums;
+﻿using PharmacyERP.Domain.Entities.Identity;
+using PharmacyERP.Domain.Enums;
 using PharmacyERP.Domain.Exceptions;
 
 namespace PharmacyERP.Domain.Entities.Integration;
@@ -21,6 +22,10 @@ public class AuditLog
     public string TraceId { get; private set; } = null!;
     public DateTimeOffset CreatedAt { get; private set; }
 
+    public Branch? Branch { get; private set; }
+    public UserAccount? ActorUser { get; private set; }
+    public Employee? ActorEmployee { get; private set; }
+
     private AuditLog() { }
 
     public AuditLog(Guid organizationId, Guid? branchId, Guid? actorUserId, Guid? actorEmployeeId, AuditActorType actorType,
@@ -29,6 +34,7 @@ public class AuditLog
     {
         if (actorType == AuditActorType.AI_ASSISTED && (actorUserId == null || string.IsNullOrWhiteSpace(sourcePromptId)))
             throw new MissingSourcePromptIdException();
+
         if (string.IsNullOrWhiteSpace(action)) throw new IntegrationDomainException("Action is required.");
         if (string.IsNullOrWhiteSpace(entitySchema)) throw new IntegrationDomainException("EntitySchema is required.");
         if (string.IsNullOrWhiteSpace(entityName)) throw new IntegrationDomainException("EntityName is required.");

@@ -1,4 +1,5 @@
-﻿using PharmacyERP.Domain.Exceptions; 
+﻿using PharmacyERP.Domain.Entities.Identity;
+using PharmacyERP.Domain.Exceptions;
 
 namespace PharmacyERP.Domain.Entities.Integration;
 
@@ -12,6 +13,8 @@ public class IdempotencyRecord
     public string PayloadHash { get; private set; } = null!;
     public string ResponseBody { get; private set; } = null!;
     public DateTimeOffset CreatedAt { get; private set; }
+
+    public Branch? Branch { get; private set; }
 
     private IdempotencyRecord() { }
 
