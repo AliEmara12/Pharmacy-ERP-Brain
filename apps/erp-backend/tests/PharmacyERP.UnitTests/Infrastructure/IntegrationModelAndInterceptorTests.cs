@@ -1,8 +1,12 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Data.Common;
+using Microsoft.EntityFrameworkCore;
+using Moq;
+using Moq.Protected;
 using PharmacyERP.Domain.Entities.Integration;
 using PharmacyERP.Infrastructure.Persistence.Database;
 using PharmacyERP.Infrastructure.Persistence.Interceptors;
 using PharmacyERP.Infrastructure.Services.Context;
+using Xunit;
 
 namespace PharmacyERP.UnitTests.Infrastructure;
 
@@ -48,9 +52,44 @@ public class IntegrationModelAndInterceptorTests
         tenantContext.SetTenant(Guid.NewGuid());
 
         var interceptor = new TenantRlsConnectionInterceptor(tenantContext);
-        var dummyCommand = new Npgsql.NpgsqlCommand("SELECT 1");
+
+        var commandMock = new Mock<DbCommand>();
+
+        // Fix: Mock the protected DbTransaction property instead of the public non-virtual Transaction property
+        commandMock.Protected().Setup<DbTransaction>("DbTransaction").Returns((DbTransaction?)null);
 
         Assert.Throws<InvalidOperationException>(() =>
-            interceptor.ScalarExecuting(dummyCommand, null!, default));
+            interceptor.ScalarExecuting(commandMock.Object, null!, default));
+    }
+
+    [Fact]
+    public void TenantRlsConnectionInterceptor_WithoutTenantBound_ThrowsUnauthorizedAccessException()
+    {
+        var tenantContext = new TenantContext();
+        var interceptor = new TenantRlsConnectionInterceptor(tenantContext);
+
+        var transactionMock = new Mock<DbTransaction>();
+        var commandMock = new Mock<DbCommand>();
+
+        // Fix: Mock the protected DbTransaction property to return our mocked transaction
+        commandMock.Protected().Setup<DbTransaction>("DbTransaction").Returns(transactionMock.Object);
+
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            interceptor.ScalarExecuting(commandMock.Object, null!, default));
+    }
+
+    [Fact]
+    public void TenantRlsConnectionInterceptor_WithSystemBypassAllowed_DoesNotThrow()
+    {
+        var tenantContext = new TenantContext();
+        tenantContext.AllowSystemBypass();
+
+        var interceptor = new TenantRlsConnectionInterceptor(tenantContext);
+
+        var commandMock = new Mock<DbCommand>();
+
+        var result = interceptor.ScalarExecuting(commandMock.Object, null!, default);
+
+        Assert.Equal(default, result);
     }
 }

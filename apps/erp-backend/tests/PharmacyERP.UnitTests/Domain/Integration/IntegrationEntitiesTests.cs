@@ -1,6 +1,7 @@
 ﻿using PharmacyERP.Domain.Entities.Integration;
 using PharmacyERP.Domain.Enums;
 using PharmacyERP.Domain.Exceptions;
+using Xunit;
 
 namespace PharmacyERP.UnitTests.Domain.Integration;
 
@@ -34,7 +35,7 @@ public class IntegrationEntitiesTests
         evt.RecordPublishFailure(longError, DateTimeOffset.UtcNow);
 
         Assert.Equal(1, evt.AttemptCount);
-        Assert.Equal(500, evt.LastError!.Length); 
+        Assert.Equal(500, evt.LastError!.Length);
         Assert.Null(evt.PublishedAt);
 
         var publishedTime = DateTimeOffset.UtcNow;
@@ -42,6 +43,25 @@ public class IntegrationEntitiesTests
 
         Assert.Equal(publishedTime, evt.PublishedAt);
         Assert.Null(evt.LastError);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void OutboxEvent_InvalidSequence_ThrowsIntegrationDomainException(long invalidSequence)
+    {
+        Assert.Throws<IntegrationDomainException>(() =>
+            new OutboxEvent(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), invalidSequence, "type", "{}", "trace"));
+    }
+
+    [Fact]
+    public void OutboxEvent_EmptyRequiredFields_ThrowsIntegrationDomainException()
+    {
+        Assert.Throws<IntegrationDomainException>(() =>
+            new OutboxEvent(Guid.NewGuid(), Guid.NewGuid(), null, 1, "", "{}", "trace"));
+
+        Assert.Throws<IntegrationDomainException>(() =>
+            new OutboxEvent(Guid.NewGuid(), Guid.NewGuid(), null, 1, "type", "", "trace"));
     }
 
     [Fact]
@@ -52,15 +72,38 @@ public class IntegrationEntitiesTests
     }
 
     [Fact]
+    public void IdempotencyRecord_EmptyRequiredFields_ThrowsIntegrationDomainException()
+    {
+        var validHash = new string('a', 64);
+
+        Assert.Throws<IntegrationDomainException>(() =>
+            new IdempotencyRecord(Guid.NewGuid(), null, "", "key", validHash, "{}"));
+
+        Assert.Throws<IntegrationDomainException>(() =>
+            new IdempotencyRecord(Guid.NewGuid(), null, "scope", "", validHash, "{}"));
+    }
+
+    [Fact]
     public void AuditLog_AiAssistedWithoutPromptIdOrUserId_ThrowsMissingSourcePromptIdException()
     {
         Assert.Throws<MissingSourcePromptIdException>(() =>
             new AuditLog(Guid.NewGuid(), null, Guid.NewGuid(), null, AuditActorType.AI_ASSISTED,
                 "CREATE", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1", sourcePromptId: null));
 
-       
         Assert.Throws<MissingSourcePromptIdException>(() =>
             new AuditLog(Guid.NewGuid(), null, actorUserId: null, null, AuditActorType.AI_ASSISTED,
                 "CREATE", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1", sourcePromptId: "prompt-99"));
+    }
+
+    [Fact]
+    public void AuditLog_EmptyRequiredFields_ThrowsIntegrationDomainException()
+    {
+        Assert.Throws<IntegrationDomainException>(() =>
+            new AuditLog(Guid.NewGuid(), null, Guid.NewGuid(), null, AuditActorType.USER,
+                "", "catalog", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1"));
+
+        Assert.Throws<IntegrationDomainException>(() =>
+            new AuditLog(Guid.NewGuid(), null, Guid.NewGuid(), null, AuditActorType.USER,
+                "CREATE", "", "PRODUCT", Guid.NewGuid(), null, "{}", "trace-1"));
     }
 }
