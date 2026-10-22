@@ -53,9 +53,21 @@ These labels come from commit `a06db63` ("Stage 6: brain_db under version contro
 
 ## What these documents do not prove
 
-They are plans and decision records. Only `apps/brain/brain_db/` is implemented, and its `brain-ci` job has not yet run on GitHub. These items stay open until their own acceptance criteria pass:
+They are plans and decision records. Only `apps/brain/brain_db/` is implemented. These items stay open until their own acceptance criteria pass:
 
-- The readiness-audit database blockers B1, B2, B6 and B7 (listed in `decisions/IMPACT_2026-10-21_N01_N02_N05.md`) close only on a green GitHub Actions run of `brain-ci`.
 - BB-24 (application-level tenant isolation) is open: no Brain application code exists yet.
 - Stage 5 is accepted with limited scope only.
 - The open N-xx questions in `decisions/ERD_DB_APPROVAL_QUESTIONS.md`, and the unsigned Canonical part of D-49.
+
+## Readiness-audit blockers B1, B2, B6 and B7
+
+These database blockers (listed in `decisions/IMPACT_2026-10-21_N01_N02_N05.md`) had one closure condition: a green GitHub Actions run of `brain-ci`. That condition is met by run 39822104031, triggered by the push to `main` of merge commit `4a2e85831b1efe03dec3d856d55853d2cedefc7c`. GitHub reports the workflow run and the `brain-ci` job as successful, with every `brain-ci` step successful. The job log could not be downloaded (it needs admin rights on the repository), so its contents, such as the pytest summary line, have not been inspected; the closure rests on GitHub's reported job and step results. Each step below fails unless its check passes.
+
+| Blocker | As recorded | `brain-ci` step that checks it |
+|---|---|---|
+| B1 | `brain_app` grants; addressed by D-51 (migration 0008) | "Integration and isolation tests (41, none skipped)": `role_security_checks.py` (D-45, D-51) and `test_api_login_cannot_write_pipeline_tables_or_rule_sets` |
+| B2 | Migrations needed a superuser; addressed by D-50 | "Runtime roles as bb_admin, then alembic upgrade head and alembic check as brain_migrator": the migration owner has no SUPERUSER, BYPASSRLS, CREATEROLE or CREATEDB and runs `alembic upgrade head` |
+| B6 | `alembic check` reported differences | The same step runs `alembic check` |
+| B7 | `brain_worker` grants; addressed by D-51 (migration 0008) | "Integration and isolation tests (41, none skipped)": `role_security_checks.py` (D-45, D-51) |
+
+The dated records in `decisions/` (`IMPACT_2026-10-21_N01_N02_N05.md`, `IMPACT_2026-10-21_N09.md`) still list these blockers as open: they record the state on 21 Oct 2026 and are kept unchanged.
